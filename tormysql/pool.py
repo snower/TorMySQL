@@ -13,8 +13,9 @@ class Connection(Client):
         super(Connection, self).__init__(*args, **kwargs)
 
     def close(self):
-        self._pool.release_connection(self)
-        return super(Connection, self).close()
+        future = TracebackFuture()
+        future.set_result(self._pool.release_connection(self))
+        return future
 
 
 class ConnectionPool(object):
@@ -33,7 +34,7 @@ class ConnectionPool(object):
                 connection = connection_future._result
                 callback(True, connection)
             else:
-                callback(False, connection_future.set_exc_info)
+                callback(False, connection_future._exc_info)
         connection = Connection(self, *self._args, **self._kwargs)
         connection_future = connection.connect()
         self._connections_count +=1
@@ -54,10 +55,8 @@ class ConnectionPool(object):
                 self._wait_connections.append(future)
         else:
             connection = self._connections.popleft()
-            def _():
-                self._used_connections.append(connection)
-                future.set_result(connection)
-            IOLoop.current().add_callback(_)
+            self._used_connections.append(connection)
+            future.set_result(connection)
         return future
 
     Connection = get_connection
