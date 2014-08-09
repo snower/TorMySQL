@@ -69,7 +69,7 @@ class ConnectionPool(object):
     def release_connection(self, connection):
         if self._wait_connections:
             future = self._wait_connections.popleft()
-            future.set_result(connection)
+            IOLoop.current().add_callback(lambda :future.set_result(connection))
         else:
             try:
                 self._used_connections.remove(connection)
