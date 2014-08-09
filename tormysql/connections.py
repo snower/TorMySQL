@@ -10,6 +10,18 @@ from tornado.iostream import IOStream
 from tornado.ioloop import IOLoop
 
 class Connection(Connection):
+    def __init__(self, *args, **kwargs):
+        self._close_callback = None
+        super(Connection, self).__init__(*args, **kwargs)
+
+    def set_close_callback(self, callback):
+        self._close_callback = callback
+
+    def close(self):
+        if self._close_callback:
+            self._close_callback()
+        super(Connection, self).close()
+
     def _connect(self):
         try:
             if self.unix_socket and self.host in ('localhost', '127.0.0.1'):
@@ -36,6 +48,9 @@ class Connection(Connection):
                 IOLoop.current().add_timeout(time.time()+self.connect_timeout, timeout)
 
             def connected():
+                def close_callback():
+                    self.close()
+                sock.set_close_callback(close_callback)
                 self.socket = sock
                 child_gr.switch()
             sock.connect(address, connected)

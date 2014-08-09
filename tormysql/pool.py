@@ -17,6 +17,11 @@ class Connection(Client):
         future.set_result(self._pool.release_connection(self))
         return future
 
+    def on_close(self):
+        if self._closed:return
+        self._closed = True
+        self._pool.close_connection(self)
+
 
 class ConnectionPool(object):
     def __init__(self, max_connections, *args, **kwargs):
@@ -24,7 +29,7 @@ class ConnectionPool(object):
         self._args = args
         self._kwargs = kwargs
         self._connections = deque()
-        self._used_connections = []
+        self._used_connections = deque()
         self._connections_count = 0
         self._wait_connections = deque()
 
@@ -66,5 +71,19 @@ class ConnectionPool(object):
             future = self._wait_connections.popleft()
             future.set_result(connection)
         else:
+            try:
+                self._used_connections.remove(connection)
+                self._connections.append(connection)
+            except ValueError:
+                connection.close()
+
+    def close_connection(self, connection):
+        try:
             self._used_connections.remove(connection)
-            self._connections.append(connection)
+            self._connections_count -= 1
+        except ValueError:
+            try:
+                self._connections.remove(connection)
+                self._connections_count -= 1
+            except ValueError:
+                pass

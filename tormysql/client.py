@@ -13,12 +13,14 @@ class Client(object):
         self._args = args
         self._kwargs = kwargs
         self._connection = None
+        self._closed = False
 
     def connect(self):
         future = TracebackFuture()
         def _(connection_future):
             if connection_future._exception is None and connection_future._exc_info is None:
                 self._connection = connection_future._result
+                self._connection.set_close_callback(self.on_close)
                 future.set_result(self)
             else:
                 future.set_exc_info(connection_future._exc_info) if connection_future._exc_info else future.set_exc_info(connection_future._exception)
@@ -26,7 +28,11 @@ class Client(object):
         IOLoop.current().add_future(connection_future, _)
         return future
 
+    def on_close(self):
+        self._closed = True
+
     def close(self):
+        if self._closed:return
         return async_call_method(self._connection.close)
 
     def autocommit(self, value):
