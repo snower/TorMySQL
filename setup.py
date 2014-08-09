@@ -29,5 +29,6 @@ setup(
         "tornado", "mysql"
     ],
     description='Tornado高性能MySQL Driver',
-    long_description= long_description
+    long_description= long_description,
+    zip_safe=False,
 )
