@@ -2,6 +2,7 @@
 # 14-8-8
 # create by: snower
 
+import time
 import greenlet
 from pymysql.connections import *
 from pymysql.connections import _scramble
@@ -22,12 +23,22 @@ class Connection(Connection):
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             if self.no_delay:
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            self.socket = IOStream(sock)
+            sock = IOStream(sock)
 
             child_gr = greenlet.getcurrent()
             main = child_gr.parent
             assert main is not None, "Execut must be running in child greenlet"
-            self.socket.connect(address, lambda :child_gr.switch())
+
+            if self.connect_timeout:
+                def timeout():
+                    if not self.socket:
+                        raise Exception("connection timeout")
+                IOLoop.current().add_timeout(time.time()+self.connect_timeout, timeout)
+
+            def connected():
+                self.socket = sock
+                child_gr.switch()
+            sock.connect(address, connected)
             main.switch()
 
             self._rfile = self.socket
