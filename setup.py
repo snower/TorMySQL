@@ -1,11 +1,12 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import os
 from setuptools import setup
 
 if os.path.exists("README.md"):
     with open("README.md") as fp:
-        long_description = fp.readall()
+        long_description = fp.read()
 else:
     long_description = ''
 
