@@ -18,7 +18,7 @@ setup(
         '': ['README.md'],
     },
     install_requires=[
-        'tornado.=4.0',
+        'tornado>=4.0',
         'PyMySQL>=0.6.2',
         'greenlet>=0.4.2',
     ],
