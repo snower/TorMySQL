@@ -18,19 +18,19 @@ class Cursor(object):
         setattr(self, name, _)
         return _
 
-setattr(OriginCursor, "__real_class__", Cursor)
+setattr(OriginCursor, "__tormysql_class__", Cursor)
 
 class DictCursor(Cursor):
     __delegate_class__ = OriginDictCursor
 
-setattr(OriginDictCursor, "__real_class__", DictCursor)
+setattr(OriginDictCursor, "__tormysql_class__", DictCursor)
 
 class SSCursor(Cursor):
     __delegate_class__ = OriginSSCursor
 
-setattr(OriginSSCursor, "__real_class__", SSCursor)
+setattr(OriginSSCursor, "__tormysql_class__", SSCursor)
 
 class SSDictCursor(SSCursor):
     __delegate_class__ = OriginSSDictCursor
 
-setattr(OriginSSDictCursor, "__real_class__", SSDictCursor)
+setattr(OriginSSDictCursor, "__tormysql_class__", SSDictCursor)

@@ -15,6 +15,9 @@ class Client(object):
         self._connection = None
         self._closed = False
 
+        if "cursorclass" in kwargs and issubclass(kwargs["cursorclass"], Cursor):
+            kwargs["cursorclass"] = kwargs["cursorclass"].__delegate_class__
+
     def connect(self):
         future = TracebackFuture()
         def _(connection_future):
@@ -64,7 +67,7 @@ class Client(object):
                 if cursor:
                     c = cursor(c)
                 else:
-                    c = c.__real_class__(c)
+                    c = c.__tormysql_class__(c)
                 future.set_result(c)
             else:
                 future.set_exc_info(cursor_future._exc_info) if cursor_future._exc_info else future.set_exc_info(cursor_future._exception)

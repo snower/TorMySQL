@@ -12,7 +12,7 @@ else:
 
 setup(
     name='TorMySQL',
-    version='0.0.1',
+    version='0.0.2',
     packages=['tormysql'],
     package_data={
         '': ['README.md'],
@@ -29,7 +29,7 @@ setup(
     keywords = [
         "tornado", "mysql"
     ],
-    description='Tornado高性能MySQL Driver',
+    description='Tornado asynchronous MySQL Driver',
     long_description= long_description,
     zip_safe=False,
 )

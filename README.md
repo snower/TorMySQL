@@ -1,7 +1,7 @@
 TorMySQL
 ========
 
-Tornado高性能MySQL Driver
+Tornado asynchronous MySQL Driver
 
 About
 =====
