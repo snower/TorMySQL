@@ -4,14 +4,21 @@
 
 import time
 import greenlet
+import cStringIO
 from pymysql.connections import *
 from pymysql.connections import _scramble
 from tornado.iostream import IOStream
 from tornado.ioloop import IOLoop
 
 class Connection(Connection):
+    DEFAULT_BUFFER = 4096
+
     def __init__(self, *args, **kwargs):
         self._close_callback = None
+        self._wbuffer = cStringIO.StringIO()
+        self._wbuffer_size = 0
+        self._rbuffer = cStringIO.StringIO('')
+        self._rbuffer_size = 0
         super(Connection, self).__init__(*args, **kwargs)
 
     def set_close_callback(self, callback):
@@ -20,7 +27,18 @@ class Connection(Connection):
     def close(self):
         if self._close_callback:
             self._close_callback()
-        super(Connection, self).close()
+        if self.socket is None:
+            raise Error("Already closed")
+        send_data = struct.pack('<i', 1) + int2byte(COM_QUIT)
+        try:
+            self._write_bytes(send_data, True)
+        except Exception:
+            pass
+        finally:
+            sock = self.socket
+            self.socket = None
+            self._rfile = None
+            sock.close()
 
     def _connect(self):
         try:
@@ -79,14 +97,38 @@ class Connection(Connection):
                 2003, "Can't connect to MySQL server on %r (%s)" % (self.host, e))
 
     def _read_bytes(self, num_bytes):
-        child_gr = greenlet.getcurrent()
-        main = child_gr.parent
-        assert main is not None, "Execut must be running in child greenlet"
-        self._rfile.read_bytes(num_bytes, lambda data:child_gr.switch(data))
-        return main.switch()
+        if num_bytes <= self._rbuffer_size:
+            self._rbuffer_size -= num_bytes
+            return self._rbuffer.read(num_bytes)
+        if num_bytes <= self._rfile._read_buffer_size:
+            self._rbuffer_size = self._rfile._read_buffer_size - num_bytes
+            self._rbuffer = cStringIO.StringIO("".join(self._rfile._read_buffer))
+            self._rfile._read_buffer.clear()
+            self._rfile._read_buffer_size = 0
+            return self._rbuffer.read(num_bytes)
+        else:
+            child_gr = greenlet.getcurrent()
+            main = child_gr.parent
+            assert main is not None, "Execut must be running in child greenlet"
+            self._rfile.read_bytes(num_bytes, lambda data:child_gr.switch(data))
+            return main.switch()
 
-    def _write_bytes(self, data):
-        self.socket.write(data)
+    def _write_bytes(self, data, flushed=False):
+        self._wbuffer.write(data)
+        self._wbuffer_size += len(data)
+        if flushed or self._wbuffer_size > self.DEFAULT_BUFFER:
+            self.flush()
+
+    def flush(self):
+        if self._wbuffer_size > 0:
+            data = self._wbuffer.getvalue()
+            self._wbuffer_size = 0
+            self._wbuffer = cStringIO.StringIO()
+            self.socket.write(data)
+
+    def _execute_command(self, command, sql):
+        super(Connection, self)._execute_command(command, sql)
+        self.flush()
 
     def _request_authentication(self):
         self.client_flag |= CAPABILITIES
@@ -109,7 +151,7 @@ class Connection(Connection):
             data = pack_int24(len(data_init)) + int2byte(next_packet) + data_init
             next_packet += 1
 
-            self._write_bytes(data)
+            self._write_bytes(data, True)
 
             child_gr = greenlet.getcurrent()
             main = child_gr.parent
@@ -145,7 +187,7 @@ class Connection(Connection):
 
         if DEBUG: dump_packet(data)
 
-        self._write_bytes(data)
+        self._write_bytes(data, True)
 
         auth_packet = MysqlPacket(self)
         auth_packet.check_error()
@@ -159,7 +201,7 @@ class Connection(Connection):
             data = _scramble_323(self.password.encode('latin1'), self.salt) + b'\0'
             data = pack_int24(len(data)) + int2byte(next_packet) + data
 
-            self._write_bytes(data)
+            self._write_bytes(data, True)
             auth_packet = MysqlPacket(self)
             auth_packet.check_error()
             if DEBUG: auth_packet.dump()
