@@ -5,7 +5,7 @@
 from collections import deque
 from tornado.concurrent import TracebackFuture
 from tornado.ioloop import IOLoop
-from client import Client
+from .client import Client
 
 class Connection(Client):
     def __init__(self, pool, *args, **kwargs):

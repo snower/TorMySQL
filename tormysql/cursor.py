@@ -3,7 +3,7 @@
 # create by: snower
 
 from pymysql.cursors import Cursor as OriginCursor, DictCursor as OriginDictCursor, SSCursor as OriginSSCursor, SSDictCursor as OriginSSDictCursor
-from util import async_call_method
+from .util import async_call_method
 
 class Cursor(object):
     __delegate_class__ = OriginCursor

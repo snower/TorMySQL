@@ -3,12 +3,12 @@
 # create by: snower
 
 from pymysql import *
-from client import Client
-from cursor import Cursor, DictCursor, SSCursor, SSDictCursor
-from pool import ConnectionPool
+from .client import Client
+from .cursor import Cursor, DictCursor, SSCursor, SSDictCursor
+from .pool import ConnectionPool
 
-version = "0.0.2"
-version_info = (0,0,2)
+version = "0.0.3"
+version_info = (0,0,3)
 
 def Connection(*args, **kwargs):
     client = Client(*args, **kwargs)

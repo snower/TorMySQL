@@ -2,22 +2,31 @@
 # 14-8-8
 # create by: snower
 
+from __future__ import absolute_import, division, print_function, with_statement
+
+import sys
 import time
 import greenlet
-import cStringIO
 from pymysql.connections import *
 from pymysql.connections import _scramble
 from tornado.iostream import IOStream
 from tornado.ioloop import IOLoop
+
+if sys.version_info[0] >=3:
+    import io
+    StringIO = io.BytesIO
+else:
+    import cStringIO
+    StringIO = cStringIO.StringIO
 
 class Connection(Connection):
     DEFAULT_BUFFER = 4096
 
     def __init__(self, *args, **kwargs):
         self._close_callback = None
-        self._wbuffer = cStringIO.StringIO()
+        self._wbuffer = StringIO()
         self._wbuffer_size = 0
-        self._rbuffer = cStringIO.StringIO('')
+        self._rbuffer = StringIO(b'')
         self._rbuffer_size = 0
         super(Connection, self).__init__(*args, **kwargs)
 
@@ -102,7 +111,7 @@ class Connection(Connection):
             return self._rbuffer.read(num_bytes)
         if num_bytes <= self._rfile._read_buffer_size:
             self._rbuffer_size = self._rfile._read_buffer_size - num_bytes
-            self._rbuffer = cStringIO.StringIO("".join(self._rfile._read_buffer))
+            self._rbuffer = StringIO(b''.join(self._rfile._read_buffer))
             self._rfile._read_buffer.clear()
             self._rfile._read_buffer_size = 0
             return self._rbuffer.read(num_bytes)
@@ -123,7 +132,7 @@ class Connection(Connection):
         if self._wbuffer_size > 0:
             data = self._wbuffer.getvalue()
             self._wbuffer_size = 0
-            self._wbuffer = cStringIO.StringIO()
+            self._wbuffer = StringIO()
             self.socket.write(data)
 
     def _execute_command(self, command, sql):
@@ -160,7 +169,7 @@ class Connection(Connection):
                 try:
                     stream = future.result()
                     child_gr.switch(stream)
-                except Exception,e:
+                except Exception as e:
                     child_gr.throw(e)
 
             future = self.socket.start_tls(None, {

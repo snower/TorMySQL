@@ -4,9 +4,9 @@
 
 from tornado.ioloop import IOLoop
 from tornado.concurrent import TracebackFuture
-from util import async_call_method
-from connections import Connection
-from cursor import Cursor
+from .util import async_call_method
+from .connections import Connection
+from .cursor import Cursor
 
 class Client(object):
     def __init__(self, *args, **kwargs):
