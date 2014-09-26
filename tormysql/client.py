@@ -59,21 +59,12 @@ class Client(object):
     def escape_string(self, s):
         return self._connection.escape_string(s)
 
-    def cursor(self, cursor=None):
-        future = TracebackFuture()
-        def _(cursor_future):
-            if cursor_future._exception is None and cursor_future._exc_info is None:
-                c = cursor_future._result
-                if cursor:
-                    c = cursor(c)
-                else:
-                    c = c.__tormysql_class__(c)
-                future.set_result(c)
-            else:
-                future.set_exc_info(cursor_future._exc_info) if cursor_future._exc_info else future.set_exc_info(cursor_future._exception)
-        cursor_future = async_call_method(self._connection.cursor, cursor.__delegate_class__ if cursor and issubclass(cursor,Cursor) else cursor)
-        IOLoop.current().add_future(cursor_future, _)
-        return future
+    def cursor(self, cursor_cls=None):
+        cursor = self._connection.cursor(cursor_cls.__delegate_class__ if cursor_cls and issubclass(cursor_cls,Cursor) else cursor_cls)
+        if cursor_cls:
+            return cursor_cls(cursor)
+        else:
+            return cursor.__tormysql_class__(cursor)
 
     def query(self, sql, unbuffered=False):
         return async_call_method(self._connection.query, sql, unbuffered)
@@ -82,7 +73,7 @@ class Client(object):
         return async_call_method(self._connection.next_result)
 
     def affected_rows(self):
-        return async_call_method(self._connection.affected_rows)
+        return self._connection.affected_rows
 
     def kill(self, thread_id):
         return async_call_method(self._connection.kill, thread_id)

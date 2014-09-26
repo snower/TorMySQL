@@ -7,24 +7,28 @@ from tornado.concurrent import TracebackFuture
 from tornado.ioloop import IOLoop
 from .client import Client
 
+class ConnectionNotFoundError(Exception):pass
+class ConnectionNotUsedError(Exception):pass
+
 class Connection(Client):
     def __init__(self, pool, *args, **kwargs):
         self._pool = pool
         super(Connection, self).__init__(*args, **kwargs)
 
     def close(self):
-        future = TracebackFuture()
-        future.set_result(self._pool.release_connection(self))
-        return future
+        return self._pool.release_connection(self)
 
     def on_close(self):
         if self._closed:return
         self._closed = True
         self._pool.close_connection(self)
 
+    def do_close(self):
+        return super(Connection, self).close()
+
 
 class ConnectionPool(object):
-    def __init__(self, max_connections, *args, **kwargs):
+    def __init__(self, max_connections=1, *args, **kwargs):
         self._max_connections = max_connections
         self._args = args
         self._kwargs = kwargs
@@ -75,7 +79,11 @@ class ConnectionPool(object):
                 self._used_connections.remove(connection)
                 self._connections.append(connection)
             except ValueError:
-                connection.close()
+                if connection not in self._connections:
+                    connection.do_close()
+                    raise ConnectionNotFoundError()
+                else:
+                    raise ConnectionNotUsedError()
 
     def close_connection(self, connection):
         try:

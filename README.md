@@ -37,11 +37,11 @@ pool = tormysql.ConnectionPool(
 @gen.coroutine
 def connect():
     conn = yield pool.Connection()
-    cursor = yield conn.cursor()
+    cursor = conn.cursor()
     yield cursor.execute("SELECT * FROM test")
-    datas = yield cursor.fetchall()
+    datas = cursor.fetchall()
     yield cursor.close()
-    yield conn.close()
+    conn.close()
 
     print datas
 
