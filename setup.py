@@ -12,7 +12,7 @@ else:
 
 setup(
     name='TorMySQL',
-    version='0.0.4',
+    version='0.0.5',
     packages=['tormysql'],
     package_data={
         '': ['README.md'],
