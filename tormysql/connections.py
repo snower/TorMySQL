@@ -109,18 +109,29 @@ class Connection(Connection):
         if num_bytes <= self._rbuffer_size:
             self._rbuffer_size -= num_bytes
             return self._rbuffer.read(num_bytes)
-        if num_bytes <= self._rfile._read_buffer_size:
-            self._rbuffer_size = self._rfile._read_buffer_size - num_bytes
-            self._rbuffer = StringIO(b''.join(self._rfile._read_buffer))
+
+        if num_bytes <= self._rfile._read_buffer_size + self._rbuffer_size:
+            last_buf = b''
+            if self._rbuffer_size > 0:
+                last_buf += self._rbuffer.next()
+            self._rbuffer_size = self._rfile._read_buffer_size + self._rbuffer_size - num_bytes
+            self._rbuffer = StringIO(last_buf + b''.join(self._rfile._read_buffer))
             self._rfile._read_buffer.clear()
             self._rfile._read_buffer_size = 0
             return self._rbuffer.read(num_bytes)
-        else:
-            child_gr = greenlet.getcurrent()
-            main = child_gr.parent
-            assert main is not None, "Execut must be running in child greenlet"
-            self._rfile.read_bytes(num_bytes, lambda data:child_gr.switch(data))
-            return main.switch()
+
+        child_gr = greenlet.getcurrent()
+        main = child_gr.parent
+        assert main is not None, "Execut must be running in child greenlet"
+
+        def read_callback(data):
+            last_buf = b''
+            if self._rbuffer_size > 0:
+                last_buf += self._rbuffer.next()
+            self._rbuffer_size = 0
+            return child_gr.switch(last_buf + data)
+        self._rfile.read_bytes(num_bytes - self._rbuffer_size, read_callback)
+        return main.switch()
 
     def _write_bytes(self, data, flushed=False):
         self._wbuffer.write(data)

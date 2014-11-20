@@ -7,6 +7,7 @@ from tornado.concurrent import TracebackFuture
 from tornado.ioloop import IOLoop
 from .client import Client
 
+class ConnectionPoolClosedError(Exception):pass
 class ConnectionNotFoundError(Exception):pass
 class ConnectionNotUsedError(Exception):pass
 
@@ -36,6 +37,7 @@ class ConnectionPool(object):
         self._used_connections = deque()
         self._connections_count = 0
         self._wait_connections = deque()
+        self._closed = False
 
     def init_connection(self, callback):
         def _(connection_future):
@@ -51,6 +53,10 @@ class ConnectionPool(object):
 
     def get_connection(self):
         future = TracebackFuture()
+        if self._closed:
+            future.set_exception(ConnectionPoolClosedError())
+            return future
+
         if not self._connections:
             if self._connections_count < self._max_connections:
                 def _(succed, result):
@@ -95,3 +101,33 @@ class ConnectionPool(object):
                 self._connections_count -= 1
             except ValueError:
                 pass
+
+    def close(self):
+        self._closed = True
+        future = TracebackFuture()
+        results = []
+        result_count = len(self._used_connections) + len(self._connections)
+
+        while len(self._wait_connections):
+            future = self._wait_connections.popleft()
+            IOLoop.current().add_callback(lambda :future.set_exception(ConnectionPoolClosedError()))
+
+        def close_callback(close_future):
+            if close_future._exception is None and close_future._exc_info is None:
+                results.append(close_future._result)
+                if result_count == len(results):
+                    future.set_result(results)
+            else:
+                future.set_exc_info(close_future._exc_info)
+
+        while len(self._used_connections):
+            connection = self._used_connections.popleft()
+            close_future = connection.do_close()
+            close_future.add_done_callback(close_callback)
+
+        while len(self._connections):
+            connection = self._connections.popleft()
+            close_future = connection.do_close()
+            close_future.add_done_callback(close_callback)
+
+        return future
