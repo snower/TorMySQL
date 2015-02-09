@@ -98,6 +98,8 @@ class Connection(Connection):
             self._rfile = None
             self.socket.close()
             self.socket = None
+            import traceback
+            traceback.print_exc()
             raise OperationalError(
                 2003, "Can't connect to MySQL server on %r (%s)" % (self.host, e))
 
@@ -191,9 +193,7 @@ class Connection(Connection):
 
         self._write_bytes(data)
 
-        auth_packet = MysqlPacket(self)
-        auth_packet.check_error()
-        if DEBUG: auth_packet.dump()
+        auth_packet = self._read_packet()
 
         # if old_passwords is enabled the packet will be 1 byte long and
         # have the octet 254
@@ -202,8 +202,5 @@ class Connection(Connection):
             # send legacy handshake
             data = _scramble_323(self.password.encode('latin1'), self.salt) + b'\0'
             data = pack_int24(len(data)) + int2byte(next_packet) + data
-
             self._write_bytes(data)
-            auth_packet = MysqlPacket(self)
-            auth_packet.check_error()
-            if DEBUG: auth_packet.dump()
+            auth_packet = self._read_packet()

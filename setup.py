@@ -12,14 +12,14 @@ else:
 
 setup(
     name='TorMySQL',
-    version='0.0.6',
+    version='0.0.7',
     packages=['tormysql'],
     package_data={
         '': ['README.md'],
     },
     install_requires=[
-        'tornado>=4.0',
-        'PyMySQL>=0.6.2',
+        'tornado>=4.1',
+        'PyMySQL>=0.6.3',
         'greenlet>=0.4.2',
     ],
     author='snower',

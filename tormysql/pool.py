@@ -44,7 +44,7 @@ class ConnectionPool(object):
 
     def init_connection(self, callback):
         def _(connection_future):
-            if connection_future._exception is None and connection_future._exc_info is None:
+            if connection_future._exc_info is None:
                 connection = connection_future._result
                 callback(True, connection)
             else:
@@ -109,7 +109,7 @@ class ConnectionPool(object):
                 pass
 
     def _close_connection_callback(self, future):
-        if future._exception is None and future._exc_info is None:
+        if future._exc_info is None:
             self._close_results.append(future._result)
             if len(self._close_results) == self._close_future_count:
                 self._close_future.set_result(self._close_results)

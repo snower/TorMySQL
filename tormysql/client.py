@@ -21,12 +21,12 @@ class Client(object):
     def connect(self):
         future = TracebackFuture()
         def _(connection_future):
-            if connection_future._exception is None and connection_future._exc_info is None:
+            if connection_future._exc_info is None:
                 self._connection = connection_future._result
                 self._connection.set_close_callback(self.on_close)
                 future.set_result(self)
             else:
-                future.set_exc_info(connection_future._exc_info) if connection_future._exc_info else future.set_exc_info(connection_future._exception)
+                future.set_exc_info(connection_future._exc_info)
         connection_future = async_call_method(Connection, *self._args, **self._kwargs)
         IOLoop.current().add_future(connection_future, _)
         return future
