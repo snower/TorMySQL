@@ -12,9 +12,9 @@ from tornado import ioloop
 import tormysql
 
 pool = tormysql.ConnectionPool(
-    host = "192.168.1.4",
+    host = "127.0.0.1",
     user = "root",
-    passwd = "moge123456",
+    passwd = "123456",
     db = "test",
     charset = "utf8"
 )
@@ -32,9 +32,7 @@ def test():
     yield pool.close()
     loop.stop()
 
-
 def start():
-    test()
     test()
 
 loop = ioloop.IOLoop.instance()
