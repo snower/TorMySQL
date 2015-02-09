@@ -13,8 +13,7 @@ Installation
 ============
 
 ```
-git clone https://github.com/snower/TorMySQL.git
-python setup.py install
+pip install TorMySQL
 ```
 
 Examples

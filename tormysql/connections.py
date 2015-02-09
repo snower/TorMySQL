@@ -4,11 +4,10 @@
 
 from __future__ import absolute_import, division, print_function, with_statement
 
-import sys
 import time
 import greenlet
 from pymysql.connections import *
-from pymysql.connections import _scramble
+from pymysql.connections import _scramble, _scramble_323
 from tornado.iostream import IOStream
 from tornado.ioloop import IOLoop
 
@@ -20,12 +19,8 @@ else:
     StringIO = cStringIO.StringIO
 
 class Connection(Connection):
-    DEFAULT_BUFFER = 4096
-
     def __init__(self, *args, **kwargs):
         self._close_callback = None
-        self._wbuffer = StringIO()
-        self._wbuffer_size = 0
         self._rbuffer = StringIO(b'')
         self._rbuffer_size = 0
         super(Connection, self).__init__(*args, **kwargs)
@@ -40,13 +35,14 @@ class Connection(Connection):
             raise Error("Already closed")
         send_data = struct.pack('<i', 1) + int2byte(COM_QUIT)
         try:
-            self._write_bytes(send_data, True)
+            self._write_bytes(send_data)
         except Exception:
             pass
         finally:
             sock = self.socket
             self.socket = None
             self._rfile = None
+            sock.set_close_callback(None)
             sock.close()
 
     def _connect(self):
@@ -133,22 +129,8 @@ class Connection(Connection):
         self._rfile.read_bytes(num_bytes - self._rbuffer_size, read_callback)
         return main.switch()
 
-    def _write_bytes(self, data, flushed=False):
-        self._wbuffer.write(data)
-        self._wbuffer_size += len(data)
-        if flushed or self._wbuffer_size > self.DEFAULT_BUFFER:
-            self.flush()
-
-    def flush(self):
-        if self._wbuffer_size > 0:
-            data = self._wbuffer.getvalue()
-            self._wbuffer_size = 0
-            self._wbuffer = StringIO()
-            self.socket.write(data)
-
-    def _execute_command(self, command, sql):
-        super(Connection, self)._execute_command(command, sql)
-        self.flush()
+    def _write_bytes(self, data):
+        self.socket.write(data)
 
     def _request_authentication(self):
         self.client_flag |= CAPABILITIES
@@ -171,7 +153,7 @@ class Connection(Connection):
             data = pack_int24(len(data_init)) + int2byte(next_packet) + data_init
             next_packet += 1
 
-            self._write_bytes(data, True)
+            self._write_bytes(data)
 
             child_gr = greenlet.getcurrent()
             main = child_gr.parent
@@ -192,7 +174,7 @@ class Connection(Connection):
             })
             IOLoop.current().add_future(future, finish)
             self.socket = main.switch()
-            self._rfile = _makefile(self.socket, 'rb')
+            self._rfile = self.socket
 
         data = data_init + self.user + b'\0' + \
             _scramble(self.password.encode('latin1'), self.salt)
@@ -207,7 +189,7 @@ class Connection(Connection):
 
         if DEBUG: dump_packet(data)
 
-        self._write_bytes(data, True)
+        self._write_bytes(data)
 
         auth_packet = MysqlPacket(self)
         auth_packet.check_error()
@@ -221,7 +203,7 @@ class Connection(Connection):
             data = _scramble_323(self.password.encode('latin1'), self.salt) + b'\0'
             data = pack_int24(len(data)) + int2byte(next_packet) + data
 
-            self._write_bytes(data, True)
+            self._write_bytes(data)
             auth_packet = MysqlPacket(self)
             auth_packet.check_error()
             if DEBUG: auth_packet.dump()
