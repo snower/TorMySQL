@@ -55,7 +55,7 @@ class Cursor(object):
         return self._cursor.__iter__()
 
     def __getattr__(self, name):
-        return self._cursor.__getattr__(name)
+        return getattr(self._cursor, name)
 
 setattr(OriginCursor, "__tormysql_class__", Cursor)
 
