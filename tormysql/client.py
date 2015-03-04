@@ -35,11 +35,15 @@ class Client(object):
         self._closed = True
 
     def close(self):
-        if self._closed:return
+        if self._closed:
+            return
         return async_call_method(self._connection.close)
 
     def autocommit(self, value):
         return async_call_method(self._connection.autocommit, value)
+
+    def begin(self):
+        return async_call_method(self._connection.begin)
 
     def commit(self):
         return async_call_method(self._connection.commit)
@@ -47,17 +51,11 @@ class Client(object):
     def rollback(self):
         return async_call_method(self._connection.rollback)
 
+    def show_warnings(self):
+        return async_call_method(self._connection.show_warnings)
+
     def select_db(self, db):
         return async_call_method(self._connection.select_db, db)
-
-    def escape(self, obj):
-        return self._connection.escape(obj)
-
-    def literal(self, obj):
-        return self._connection.literal(obj)
-
-    def escape_string(self, s):
-        return self._connection.escape_string(s)
 
     def cursor(self, cursor_cls=None):
         cursor = self._connection.cursor(cursor_cls.__delegate_class__ if cursor_cls and issubclass(cursor_cls,Cursor) else cursor_cls)
@@ -72,9 +70,6 @@ class Client(object):
     def next_result(self):
         return async_call_method(self._connection.next_result)
 
-    def affected_rows(self):
-        return self._connection.affected_rows
-
     def kill(self, thread_id):
         return async_call_method(self._connection.kill, thread_id)
 
@@ -84,5 +79,5 @@ class Client(object):
     def set_charset(self, charset):
         return async_call_method(self._connection.set_charset, charset)
 
-    def insert_id(self):
-        return self._connection.insert_id()
+    def __getattr__(self, name):
+        return getattr(self._connection, name)

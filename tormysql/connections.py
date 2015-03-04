@@ -45,6 +45,10 @@ class Connection(Connection):
             sock.set_close_callback(None)
             sock.close()
 
+    def __del__(self):
+        if self.socket:
+            self.close()
+
     def _connect(self):
         try:
             if self.unix_socket and self.host in ('localhost', '127.0.0.1'):
