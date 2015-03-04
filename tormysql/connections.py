@@ -8,7 +8,7 @@ import time
 import greenlet
 from pymysql.connections import *
 from pymysql.connections import _scramble, _scramble_323
-from tornado.iostream import IOStream
+from tornado.iostream import IOStream, StreamClosedError
 from tornado.ioloop import IOLoop
 
 if sys.version_info[0] >=3:
@@ -32,8 +32,8 @@ class Connection(Connection):
         if self._close_callback:
             self._close_callback()
         if self.socket is None:
-            raise Error("Already closed")
-        send_data = struct.pack('<i', 1) + int2byte(COM_QUIT)
+            raise err.Error("Already closed")
+        send_data = struct.pack('<iB', 1, COMMAND.COM_QUIT)
         try:
             self._write_bytes(send_data)
         except Exception:
@@ -98,9 +98,7 @@ class Connection(Connection):
             self._rfile = None
             self.socket.close()
             self.socket = None
-            import traceback
-            traceback.print_exc()
-            raise OperationalError(
+            raise err.OperationalError(
                 2003, "Can't connect to MySQL server on %r (%s)" % (self.host, e))
 
     def _read_bytes(self, num_bytes):
@@ -128,16 +126,22 @@ class Connection(Connection):
                 last_buf += self._rbuffer.next()
             self._rbuffer_size = 0
             return child_gr.switch(last_buf + data)
-        self._rfile.read_bytes(num_bytes - self._rbuffer_size, read_callback)
+        try:
+            self._rfile.read_bytes(num_bytes - self._rbuffer_size, read_callback)
+        except (AttributeError, StreamClosedError) as e:
+            raise err.OperationalError(2006, "MySQL server has gone away (%r)" % (e,))
         return main.switch()
 
     def _write_bytes(self, data):
-        self.socket.write(data)
+        try:
+            self.socket.write(data)
+        except (AttributeError, StreamClosedError) as e:
+            raise err.OperationalError(2006, "MySQL server has gone away (%r)" % (e,))
 
     def _request_authentication(self):
-        self.client_flag |= CAPABILITIES
+        self.client_flag |= CLIENT.CAPABILITIES
         if self.server_version.startswith('5'):
-            self.client_flag |= MULTI_RESULTS
+            self.client_flag |= CLIENT.MULTI_RESULTS
 
         if self.user is None:
             raise ValueError("Did not specify a username")
@@ -146,8 +150,7 @@ class Connection(Connection):
         if isinstance(self.user, text_type):
             self.user = self.user.encode(self.encoding)
 
-        data_init = struct.pack('<i', self.client_flag) + struct.pack("<I", 1) + \
-                     int2byte(charset_id) + int2byte(0)*23
+        data_init = struct.pack('<iIB23s', self.client_flag, 1, charset_id, b'')
 
         next_packet = 1
 
