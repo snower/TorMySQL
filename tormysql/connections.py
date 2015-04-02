@@ -127,7 +127,7 @@ class Connection(Connection):
         def read_callback(data):
             last_buf = b''
             if self._rbuffer_size > 0:
-                last_buf += self._rbuffer.next()
+                last_buf += self._rbuffer.read()
             self._rbuffer_size = 0
             return child_gr.switch(last_buf + data)
         try:
