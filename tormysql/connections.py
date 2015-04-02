@@ -113,7 +113,7 @@ class Connection(Connection):
         if num_bytes <= self._rfile._read_buffer_size + self._rbuffer_size:
             last_buf = b''
             if self._rbuffer_size > 0:
-                last_buf += self._rbuffer.next()
+                last_buf += self._rbuffer.read()
             self._rbuffer_size = self._rfile._read_buffer_size + self._rbuffer_size - num_bytes
             self._rbuffer = StringIO(last_buf + b''.join(self._rfile._read_buffer))
             self._rfile._read_buffer.clear()
