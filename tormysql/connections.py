@@ -71,8 +71,9 @@ class Connection(Connection):
             if self.connect_timeout:
                 def timeout():
                     if not self.socket:
-                        raise Exception("connection timeout")
-                IOLoop.current().add_timeout(time.time()+self.connect_timeout, timeout)
+                        sock.close()
+                        child_gr.throw(IOError("connection timeout"))
+                IOLoop.current().add_timeout(time.time() + self.connect_timeout, timeout)
 
             def connected():
                 def close_callback():
@@ -99,9 +100,10 @@ class Connection(Connection):
             if self.autocommit_mode is not None:
                 self.autocommit(self.autocommit_mode)
         except Exception as e:
-            self._rfile = None
-            self.socket.close()
-            self.socket = None
+            if self.socket:
+                self._rfile = None
+                self.socket.close()
+                self.socket = None
             raise err.OperationalError(
                 2003, "Can't connect to MySQL server on %r (%s)" % (self.host, e))
 
