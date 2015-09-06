@@ -12,6 +12,8 @@ from tornado import ioloop
 import tormysql
 
 pool = tormysql.ConnectionPool(
+    max_connections = 20,
+    idle_seconds = 7200,
     host = "127.0.0.1",
     user = "root",
     passwd = "123456",

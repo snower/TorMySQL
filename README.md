@@ -25,7 +25,8 @@ from tornado import gen
 import tormysql
 
 pool = tormysql.ConnectionPool(
-    max_connections = 20,
+    max_connections = 20, #max open connections
+    idle_seconds = 7200, #conntion idle timeout time, 0 is not timeout
     host = "127.0.0.1",
     user = "root",
     passwd = "TEST",
@@ -34,7 +35,7 @@ pool = tormysql.ConnectionPool(
 )
 
 @gen.coroutine
-def connect():
+def test():
     conn = yield pool.Connection()
     cursor = conn.cursor()
     yield cursor.execute("SELECT * FROM test")
@@ -43,11 +44,10 @@ def connect():
     conn.close()
 
     print datas
-
-def start():
-    connect()
+    
+    yield pool.close()
 
 ioloop = IOLoop.instance()
-ioloop.add_callback(start)
+ioloop.add_callback(test)
 ioloop.start()
 ```
