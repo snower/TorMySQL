@@ -14,6 +14,7 @@ class Client(object):
         self._kwargs = kwargs
         self._connection = None
         self._closed = False
+        self._close_callback = None
 
         if "cursorclass" in kwargs and issubclass(kwargs["cursorclass"], Cursor):
             kwargs["cursorclass"] = kwargs["cursorclass"].__delegate_class__
@@ -33,6 +34,12 @@ class Client(object):
 
     def on_close(self):
         self._closed = True
+        if self._close_callback:
+            self._close_callback(self)
+            self._close_callback = None
+
+    def set_close_callback(self, callback):
+        self._close_callback = callback
 
     def close(self):
         if self._closed:
