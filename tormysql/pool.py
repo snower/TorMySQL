@@ -96,9 +96,9 @@ class ConnectionPool(object):
             return connection.do_close()
 
         if self._wait_connections:
-            future = self._wait_connections.popleft()
+            wait_future = self._wait_connections.popleft()
             connection.used_time = time.time()
-            IOLoop.current().add_callback(lambda :future.set_result(connection))
+            IOLoop.current().add_callback(lambda wait_future: wait_future.set_result(connection), wait_future)
         else:
             try:
                 del self._used_connections[id(connection)]
