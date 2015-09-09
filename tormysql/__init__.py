@@ -7,8 +7,8 @@ from .client import Client
 from .cursor import Cursor, DictCursor, SSCursor, SSDictCursor
 from .pool import ConnectionPool
 
-version = "0.1.1"
-version_info = (0,1,1)
+version = "0.1.2"
+version_info = (0,1,2)
 
 def Connection(*args, **kwargs):
     client = Client(*args, **kwargs)
