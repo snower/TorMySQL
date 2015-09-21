@@ -23,6 +23,7 @@ class Connection(Connection):
         self._close_callback = None
         self._rbuffer = StringIO(b'')
         self._rbuffer_size = 0
+        self._loop = None
         super(Connection, self).__init__(*args, **kwargs)
 
     def set_close_callback(self, callback):
@@ -50,6 +51,7 @@ class Connection(Connection):
             self.close()
 
     def _connect(self):
+        self._loop = IOLoop.current()
         try:
             if self.unix_socket and self.host in ('localhost', '127.0.0.1'):
                 sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -126,14 +128,19 @@ class Connection(Connection):
         main = child_gr.parent
         assert main is not None, "Execut must be running in child greenlet"
 
-        def read_callback(data):
+        def read_callback(future):
+            if future._exc_info is not None:
+                return child_gr.throw(err.OperationalError(2006, "MySQL server has gone away (%r)" % (future.exception(),)))
+
+            data = future.result()
             last_buf = b''
             if self._rbuffer_size > 0:
                 last_buf += self._rbuffer.read()
             self._rbuffer_size = 0
             return child_gr.switch(last_buf + data)
         try:
-            self._rfile.read_bytes(num_bytes - self._rbuffer_size, read_callback)
+            future = self._rfile.read_bytes(num_bytes - self._rbuffer_size)
+            self._loop.add_future(future, read_callback)
         except (AttributeError, StreamClosedError) as e:
             raise err.OperationalError(2006, "MySQL server has gone away (%r)" % (e,))
         return main.switch()
