@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 # 14-8-8
 # create by: snower
-
+from tornado.ioloop import IOLoop
 from tornado.concurrent import TracebackFuture
 from pymysql.cursors import Cursor as OriginCursor, DictCursor as OriginDictCursor, SSCursor as OriginSSCursor, SSDictCursor as OriginSSDictCursor
 from .util import async_call_method
+
 
 class Cursor(object):
     __delegate_class__ = OriginCursor
@@ -57,12 +58,22 @@ class Cursor(object):
     def __getattr__(self, name):
         return getattr(self._cursor, name)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        IOLoop.current().add_callback(self.close)
+
+
 setattr(OriginCursor, "__tormysql_class__", Cursor)
+
 
 class DictCursor(Cursor):
     __delegate_class__ = OriginDictCursor
 
+
 setattr(OriginDictCursor, "__tormysql_class__", DictCursor)
+
 
 class SSCursor(Cursor):
     __delegate_class__ = OriginSSCursor

@@ -9,10 +9,22 @@ from tornado.concurrent import TracebackFuture
 from tornado.ioloop import IOLoop
 from .client import Client
 
-class ConnectionPoolClosedError(Exception):pass
-class ConnectionNotFoundError(Exception):pass
-class ConnectionNotUsedError(Exception):pass
-class ConnectionUsedError(Exception):pass
+
+class ConnectionPoolClosedError(Exception):
+    pass
+
+
+class ConnectionNotFoundError(Exception):
+    pass
+
+
+class ConnectionNotUsedError(Exception):
+    pass
+
+
+class ConnectionUsedError(Exception):
+    pass
+
 
 class Connection(Client):
     def __init__(self, pool, *args, **kwargs):
@@ -21,10 +33,16 @@ class Connection(Client):
         self.used_time = time.time()
         super(Connection, self).__init__(*args, **kwargs)
 
-    def close(self, remote_close = False):
+    def close(self, remote_close=False):
         if remote_close:
             return self.do_close()
         return self._pool.release_connection(self)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        IOLoop.current().add_callback(self.close)
 
     def do_close(self):
         return super(Connection, self).close()
