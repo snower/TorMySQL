@@ -1,15 +1,15 @@
 # encoding: utf-8
 from tornado.testing import gen_test
+from tormysql import Connection
 from . import BaseTestCase
 
 
-class TestBasic(BaseTestCase):
+class TestInit(BaseTestCase):
     @gen_test
     def test0(self):
-        sql = "select * from user limit 1"
-        connection = yield self.pool.Connection()
+        connection = yield Connection(**self.PARAMS)
         cursor = connection.cursor()
-        yield cursor.execute(sql)
+        yield cursor.execute('SELECT 1')
 
         datas = cursor.fetchall()
         yield cursor.close()

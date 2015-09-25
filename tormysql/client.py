@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 # 14-8-8
 # create by: snower
-
-from tornado.ioloop import IOLoop
-from tornado.concurrent import TracebackFuture
+from tornado.gen import coroutine, Return
 from .util import async_call_method
 from .connections import Connection
 from .cursor import Cursor
+
 
 class Client(object):
     def __init__(self, *args, **kwargs):
@@ -19,18 +18,11 @@ class Client(object):
         if "cursorclass" in kwargs and issubclass(kwargs["cursorclass"], Cursor):
             kwargs["cursorclass"] = kwargs["cursorclass"].__delegate_class__
 
+    @coroutine
     def connect(self):
-        future = TracebackFuture()
-        def _(connection_future):
-            if connection_future._exc_info is None:
-                self._connection = connection_future._result
-                self._connection.set_close_callback(self.on_close)
-                future.set_result(self)
-            else:
-                future.set_exc_info(connection_future._exc_info)
-        connection_future = async_call_method(Connection, *self._args, **self._kwargs)
-        IOLoop.current().add_future(connection_future, _)
-        return future
+        self._connection = yield async_call_method(Connection, *self._args, **self._kwargs)
+        self._connection.set_close_callback(self.on_close)
+        raise Return(self)
 
     def on_close(self):
         self._closed = True

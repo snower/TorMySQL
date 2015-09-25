@@ -4,12 +4,21 @@
 
 from __future__ import absolute_import, division, print_function, with_statement
 
-import time
 import greenlet
-from pymysql.connections import *
+import socket
+import ssl
+import sys
+import struct
+from pymysql import err, text_type
+from pymysql.charset import charset_by_name
+from pymysql.util import int2byte
+from pymysql.constants import COMMAND, CLIENT
+from pymysql.connections import Connection as _Connection, pack_int24, dump_packet, DEBUG
 from pymysql.connections import _scramble, _scramble_323
+from tornado.gen import coroutine, Return
 from tornado.iostream import IOStream, StreamClosedError
 from tornado.ioloop import IOLoop
+
 
 if sys.version_info[0] >=3:
     import io
@@ -18,7 +27,8 @@ else:
     import cStringIO
     StringIO = cStringIO.StringIO
 
-class Connection(Connection):
+
+class Connection(_Connection):
     def __init__(self, *args, **kwargs):
         self._close_callback = None
         self._rbuffer = StringIO(b'')
@@ -75,7 +85,8 @@ class Connection(Connection):
                     if not self.socket:
                         sock.close()
                         child_gr.throw(IOError("connection timeout"))
-                IOLoop.current().add_timeout(time.time() + self.connect_timeout, timeout)
+
+                IOLoop.current().call_later(self.connect_timeout, timeout)
 
             def connected():
                 def close_callback():
@@ -176,6 +187,7 @@ class Connection(Connection):
             child_gr = greenlet.getcurrent()
             main = child_gr.parent
             assert main is not None, "Execut must be running in child greenlet"
+
             def finish(future):
                 try:
                     stream = future.result()
@@ -184,11 +196,11 @@ class Connection(Connection):
                     child_gr.throw(e)
 
             future = self.socket.start_tls(None, {
-                "keyfile":self.key,
-                "certfile":self.cert,
-                "ssl_version":ssl.PROTOCOL_TLSv1,
-                "cert_reqs":ssl.CERT_REQUIRED,
-                "ca_certs":self.ca,
+                "keyfile": self.key,
+                "certfile": self.cert,
+                "ssl_version": ssl.PROTOCOL_TLSv1,
+                "cert_reqs": ssl.CERT_REQUIRED,
+                "ca_certs": self.ca,
             })
             IOLoop.current().add_future(future, finish)
             self.socket = main.switch()
@@ -205,7 +217,8 @@ class Connection(Connection):
         data = pack_int24(len(data)) + int2byte(next_packet) + data
         next_packet += 2
 
-        if DEBUG: dump_packet(data)
+        if DEBUG:
+            dump_packet(data)
 
         self._write_bytes(data)
 

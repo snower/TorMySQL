@@ -3,7 +3,10 @@
 # create by: snower
 from tornado.ioloop import IOLoop
 from tornado.concurrent import TracebackFuture
-from pymysql.cursors import Cursor as OriginCursor, DictCursor as OriginDictCursor, SSCursor as OriginSSCursor, SSDictCursor as OriginSSDictCursor
+from pymysql.cursors import (
+    Cursor as OriginCursor, DictCursor as OriginDictCursor,
+    SSCursor as OriginSSCursor, SSDictCursor as OriginSSDictCursor
+)
 from .util import async_call_method
 
 
@@ -26,6 +29,7 @@ class Cursor(object):
             future.set_result(None)
             return future
         future = async_call_method(self._cursor.close)
+
         def do_close(future):
             self._cursor = None
         future.add_done_callback(do_close)
@@ -98,6 +102,7 @@ class SSCursor(Cursor):
 
 
 setattr(OriginSSCursor, "__tormysql_class__", SSCursor)
+
 
 class SSDictCursor(SSCursor):
     __delegate_class__ = OriginSSDictCursor
