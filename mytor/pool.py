@@ -27,6 +27,8 @@ class ConnectionUsedError(Exception):
 
 
 class Connection(Client):
+    __slots__ = ['_pool', 'idle_time', 'used_time']
+
     def __init__(self, pool, *args, **kwargs):
         self._pool = pool
         self.idle_time = time.time()
@@ -49,6 +51,12 @@ class Connection(Client):
 
 
 class ConnectionPool(object):
+    __slots__ = [
+        '_max_connections', '_idle_seconds', '_args', '_kwargs', '_connections',
+        '_used_connections', '_connections_count', '_wait_connections', '_closed',
+        '_close_future', '_check_idle_callback'
+    ]
+
     def __init__(self, *args, **kwargs):
         self._max_connections = kwargs.pop("max_connections") if "max_connections" in kwargs else 1
         self._idle_seconds = kwargs.pop("idle_seconds") if "idle_seconds" in kwargs else 0

@@ -11,6 +11,7 @@ from .util import async_call_method
 
 
 class Cursor(object):
+    __slots__ = ['_cursor', ]
     __delegate_class__ = OriginCursor
 
     def __init__(self, cursor):
@@ -19,6 +20,7 @@ class Cursor(object):
     def __del__(self):
         if self._cursor:
             future = async_call_method(self._cursor.close)
+
             def do_close(future):
                 self._cursor = None
             future.add_done_callback(do_close)

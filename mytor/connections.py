@@ -28,6 +28,8 @@ else:
 
 
 class Connection(_Connection):
+    __slots__ = ['socket', '_loop', '_rfile', '_rbuffer', '_rbuffer_size', '_close_callback']
+
     def __init__(self, *args, **kwargs):
         self._close_callback = None
         self._rbuffer = StringIO(b'')
