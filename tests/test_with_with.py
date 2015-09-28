@@ -37,6 +37,6 @@ class TestAsyncCursor(BaseTestCase):
             with connection.cursor() as cursor:
                 yield cursor.execute(sql)
                 result = yield cursor.fetchone()
-                self.assertIn('test', result)
+                self.assertTrue('test' in result)
                 self.assertEqual(result['test'], 1)
                 self.assertEqual(result.test, 1)
