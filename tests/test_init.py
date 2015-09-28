@@ -1,6 +1,6 @@
 # encoding: utf-8
 from tornado.testing import gen_test
-from tormysql import Connection
+from mytor import Connection
 from . import BaseTestCase
 
 

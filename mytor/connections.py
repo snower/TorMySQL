@@ -15,7 +15,6 @@ from pymysql.util import int2byte
 from pymysql.constants import COMMAND, CLIENT
 from pymysql.connections import Connection as _Connection, pack_int24, dump_packet, DEBUG
 from pymysql.connections import _scramble, _scramble_323
-from tornado.gen import coroutine, Return
 from tornado.iostream import IOStream, StreamClosedError
 from tornado.ioloop import IOLoop
 
