@@ -103,10 +103,30 @@ class SSCursor(Cursor):
         return async_call_method(self._cursor.scroll, value, mode)
 
 
-setattr(OriginSSCursor, "__tormysql_class__", SSCursor)
+
+class DBRow(object):
+    __slots__ = ['__row']
+
+    def __init__(self, *args, **kwargs):
+        self.__row = dict(*args, **kwargs)
+
+    def __getattr__(self, item):
+        return self.__row[item]
+
+    def __getitem__(self, item):
+        return self.__row[item]
+
+    def __contains__(self, item):
+        return item in self.__row
+
+    def __repr__(self):
+        return "Row({0})".format(", ".join("{0}={1!r}".format(k, v) for k, v in self.__row.items()))
+
+    def __str__(self):
+        return self.__repr__()
 
 
 class SSDictCursor(SSCursor):
     __delegate_class__ = OriginSSDictCursor
 
-setattr(OriginSSDictCursor, "__tormysql_class__", SSDictCursor)
+DictCursorMixin.dict_type = DBRow
