@@ -41,10 +41,12 @@ class Connection(_Connection):
         self._close_callback = callback
 
     def close(self):
-        if self._close_callback:
+        if self._close_callback and callable(self._close_callback):
             self._close_callback()
+
         if self.socket is None:
             raise err.Error("Already closed")
+
         send_data = struct.pack('<iB', 1, COMMAND.COM_QUIT)
         try:
             self._write_bytes(send_data)

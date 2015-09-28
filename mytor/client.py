@@ -16,7 +16,8 @@ class Client(object):
         self._close_callback = None
 
         if "cursorclass" in kwargs and issubclass(kwargs["cursorclass"], Cursor):
-            kwargs["cursorclass"] = kwargs["cursorclass"].__delegate_class__
+            if hasattr(kwargs["cursorclass"], '__delegate_class__') and kwargs["cursorclass"].__delegate_class__:
+                kwargs["cursorclass"] = kwargs["cursorclass"].__delegate_class__
 
     @coroutine
     def connect(self):
@@ -57,11 +58,14 @@ class Client(object):
         return async_call_method(self._connection.select_db, db)
 
     def cursor(self, cursor_cls=None):
-        cursor = self._connection.cursor(cursor_cls.__delegate_class__ if cursor_cls and issubclass(cursor_cls, Cursor) else cursor_cls)
+        cursor = self._connection.cursor(
+            cursor_cls.__delegate_class__ if cursor_cls and issubclass(cursor_cls, Cursor) else cursor_cls
+        )
+
         if cursor_cls:
             return cursor_cls(cursor)
         else:
-            return cursor.__tormysql_class__(cursor)
+            return cursor.__mytor_class__(cursor)
 
     def query(self, sql, unbuffered=False):
         return async_call_method(self._connection.query, sql, unbuffered)

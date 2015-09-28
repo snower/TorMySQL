@@ -5,8 +5,8 @@ from tornado.ioloop import IOLoop
 from tornado.concurrent import TracebackFuture
 from pymysql.cursors import (
     Cursor as OriginCursor, DictCursor as OriginDictCursor,
-    SSCursor as OriginSSCursor, SSDictCursor as OriginSSDictCursor
-)
+    SSCursor as OriginSSCursor, SSDictCursor as OriginSSDictCursor,
+    DictCursorMixin)
 from .util import async_call_method
 
 
@@ -71,14 +71,14 @@ class Cursor(object):
         IOLoop.current().add_callback(self.close)
 
 
-setattr(OriginCursor, "__tormysql_class__", Cursor)
+setattr(OriginCursor, "__mytor_class__", Cursor)
 
 
 class DictCursor(Cursor):
     __delegate_class__ = OriginDictCursor
 
 
-setattr(OriginDictCursor, "__tormysql_class__", DictCursor)
+setattr(OriginDictCursor, "__mytor_class__", DictCursor)
 
 
 class SSCursor(Cursor):
@@ -102,6 +102,7 @@ class SSCursor(Cursor):
     def scroll(self, value, mode='relative'):
         return async_call_method(self._cursor.scroll, value, mode)
 
+setattr(OriginSSCursor, "__mytor_class__", SSCursor)
 
 
 class DBRow(object):
@@ -130,3 +131,6 @@ class SSDictCursor(SSCursor):
     __delegate_class__ = OriginSSDictCursor
 
 DictCursorMixin.dict_type = DBRow
+
+
+setattr(OriginSSDictCursor, "__mytor_class__", SSDictCursor)

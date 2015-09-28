@@ -75,18 +75,19 @@ class ConnectionPool(object):
         return self._closed
 
     def init_connection(self, callback):
-        def _(connection_future):
+        def on_connected(connection_future):
             if connection_future._exc_info is None:
                 connection = connection_future._result
                 callback(True, connection)
             else:
                 callback(False, connection_future._exc_info)
+
         connection = Connection(self, *self._args, **self._kwargs)
         connection.set_close_callback(self.connection_close_callback)
         self._connections_count += 1
         self._used_connections[id(connection)] = connection
         connection_future = connection.connect()
-        IOLoop.current().add_future(connection_future, _)
+        IOLoop.current().add_future(connection_future, on_connected)
 
         if self._idle_seconds > 0 and not self._check_idle_callback:
             IOLoop.current().add_timeout(time.time() + self._idle_seconds, self.check_idle_connections)
