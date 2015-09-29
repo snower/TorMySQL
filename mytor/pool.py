@@ -5,7 +5,7 @@
 import time
 import logging
 from collections import deque
-from tornado.concurrent import TracebackFuture
+from tornado.concurrent import Future
 from tornado.ioloop import IOLoop
 from .client import Client
 
@@ -76,11 +76,11 @@ class ConnectionPool(object):
 
     def init_connection(self, callback):
         def on_connected(connection_future):
-            if connection_future._exc_info is None:
-                connection = connection_future._result
-                callback(True, connection)
-            else:
-                callback(False, connection_future._exc_info)
+            try:
+                result = connection_future.result()
+                callback(True, result)
+            except Exception as e:
+                callback(False, e)
 
         connection = Connection(self, *self._args, **self._kwargs)
         connection.set_close_callback(self.connection_close_callback)
@@ -94,19 +94,20 @@ class ConnectionPool(object):
             self._check_idle_callback = True
 
     def get_connection(self):
-        future = TracebackFuture()
+        future = Future()
+
         if self._closed:
-            future.set_exception(ConnectionPoolClosedError())
-            return future
+            raise ConnectionPoolClosedError()
 
         if not self._connections:
             if self._connections_count < self._max_connections:
-                def _(succed, result):
+                def on_connect(succed, result):
                     if succed:
                         future.set_result(result)
                     else:
-                        future.set_exc_info(result)
-                self.init_connection(_)
+                        future.set_exception(ConnectionError(result))
+
+                self.init_connection(on_connect)
             else:
                 self._wait_connections.append(future)
         else:
@@ -114,6 +115,7 @@ class ConnectionPool(object):
             self._used_connections[id(connection)] = connection
             connection.used_time = time.time()
             future.set_result(connection)
+
         return future
 
     Connection = get_connection
@@ -133,11 +135,11 @@ class ConnectionPool(object):
                 connection.idle_time = time.time()
             except KeyError:
                 if connection not in self._connections:
-                    connection.do_close()
+                    IOLoop.current().add_callback(connection.do_close)
                     raise ConnectionNotFoundError()
                 else:
                     raise ConnectionNotUsedError()
-        future = TracebackFuture()
+        future = Future()
         future.set_result(None)
         return future
 
@@ -170,7 +172,7 @@ class ConnectionPool(object):
             raise ConnectionPoolClosedError()
 
         self._closed = True
-        self._close_future = TracebackFuture()
+        self._close_future = Future()
 
         while len(self._wait_connections):
             future = self._wait_connections.popleft()

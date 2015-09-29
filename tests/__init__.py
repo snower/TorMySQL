@@ -8,6 +8,7 @@ from tornado.testing import AsyncTestCase
 class BaseTestCase(AsyncTestCase):
     PARAMS = dict(
         host=os.getenv("MYSQL_HOST", "127.0.0.1"),
+        port=int(os.getenv("MYSQL_PORT", "3306")),
         user=os.getenv("MYSQL_USER", "root"),
         passwd=os.getenv("MYSQL_PASSWD", ""),
         db=os.getenv("MYSQL_DB", "mysql"),

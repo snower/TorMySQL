@@ -28,7 +28,13 @@ else:
 
 
 class Connection(_Connection):
+    _socket = None
     __slots__ = ['socket', '_loop', '_rfile', '_rbuffer', '_rbuffer_size', '_close_callback']
+
+    def __getattr__(self, item):
+        if item is 'socket':
+            return self._socket
+        return getattr(self, item)
 
     def __init__(self, *args, **kwargs):
         self._close_callback = None
@@ -77,9 +83,18 @@ class Connection(_Connection):
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             if self.no_delay:
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            sock = IOStream(sock)
 
             child_gr = greenlet.getcurrent()
+            sock = IOStream(sock)
+
+            def on_close(reason=None):
+                if self.socket:
+                    return self.close()
+                else:
+                    return child_gr.throw(IOError(reason))
+
+            sock.set_close_callback(on_close)
+
             main = child_gr.parent
             assert main is not None, "Execut must be running in child greenlet"
 
@@ -92,11 +107,9 @@ class Connection(_Connection):
                 IOLoop.current().call_later(self.connect_timeout, timeout)
 
             def connected():
-                def close_callback():
-                    self.close()
-                sock.set_close_callback(close_callback)
                 self.socket = sock
                 child_gr.switch()
+
             sock.connect(address, connected)
             main.switch()
 

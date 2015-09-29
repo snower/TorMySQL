@@ -21,11 +21,16 @@ class Client(object):
 
     @coroutine
     def connect(self):
-        self._connection = yield async_call_method(Connection, *self._args, **self._kwargs)
-        self._connection.set_close_callback(self.on_close)
-        raise Return(self)
+        try:
+            self._connection = yield async_call_method(Connection, *self._args, **self._kwargs)
+        except Exception as e:
+            self.on_close(e)
+            raise
+        else:
+            self._connection.set_close_callback(self.on_close)
+            raise Return(self)
 
-    def on_close(self):
+    def on_close(self, reason=None):
         self._closed = True
         if self._close_callback:
             self._close_callback(self)
