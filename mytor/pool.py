@@ -10,6 +10,13 @@ from tornado.ioloop import IOLoop
 from .client import Client
 
 
+try:
+    ConnectionError
+except NameError:
+    class ConnectionError(Exception):
+        pass
+
+
 class ConnectionPoolClosedError(Exception):
     pass
 

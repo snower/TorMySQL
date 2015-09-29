@@ -1,5 +1,5 @@
 # encoding: utf-8
-from mytor.pool import ConnectionNotFoundError
+from mytor.pool import ConnectionNotFoundError, ConnectionError
 import os
 import socket
 from pymysql import OperationalError
