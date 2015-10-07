@@ -1,10 +1,10 @@
 # encoding: utf-8
-from mytor.pool import ConnectionNotFoundError
+from tormysql.pool import ConnectionNotFoundError
 import os
 import socket
 from pymysql import OperationalError
 from tornado.testing import gen_test
-from mytor import Connection, ConnectionPool
+from tormysql import Connection, ConnectionPool
 from maproxy.proxyserver import ProxyServer
 from . import BaseTestCase
 
@@ -12,7 +12,7 @@ from . import BaseTestCase
 try:
     ConnectionError
 except NameError:
-    from mytor.pool import ConnectionError
+    from tormysql.pool import ConnectionError
 
 
 class TestConnection(BaseTestCase):

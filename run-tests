@@ -5,4 +5,4 @@ export LOG_LEVEL=debug
 exec nosetests \
         --logging-format='%(asctime)s [%(name)s] %(levelname)-6s %(message)s' \
         --with-coverage \
-        --cover-package=mytor
+        --cover-package=tormysql

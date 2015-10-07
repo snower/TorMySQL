@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # encoding: utf-8
 import os
-from mytor import ConnectionPool
+from tormysql import ConnectionPool
 from tornado.testing import AsyncTestCase
 
 
