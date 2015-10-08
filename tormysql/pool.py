@@ -117,7 +117,7 @@ class ConnectionPool(object):
         if self._wait_connections:
             wait_future = self._wait_connections.popleft()
             connection.used_time = time.time()
-            IOLoop.current().add_callback(lambda wait_future: wait_future.set_result(connection), wait_future)
+            IOLoop.current().add_callback(wait_future.set_result, connection)
         else:
             try:
                 del self._used_connections[id(connection)]
@@ -166,7 +166,7 @@ class ConnectionPool(object):
 
         while len(self._wait_connections):
             future = self._wait_connections.popleft()
-            IOLoop.current().add_callback(lambda :future.set_exception(ConnectionPoolClosedError()))
+            IOLoop.current().add_callback(future.set_exception, ConnectionPoolClosedError())
 
         while len(self._connections):
             connection = self._connections.popleft()
