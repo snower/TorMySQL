@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 # 14-8-8
 # create by: snower
-from tornado.gen import coroutine, Return
+
+from tornado.ioloop import IOLoop
+from tornado.gen import Future
 from .util import async_call_method
 from .connections import Connection
 from .cursor import Cursor
@@ -16,25 +18,26 @@ class Client(object):
         self._close_callback = None
 
         if "cursorclass" in kwargs and issubclass(kwargs["cursorclass"], Cursor):
-            if hasattr(kwargs["cursorclass"], '__delegate_class__') and kwargs["cursorclass"].__delegate_class__:
-                kwargs["cursorclass"] = kwargs["cursorclass"].__delegate_class__
+            kwargs["cursorclass"] = kwargs["cursorclass"].__delegate_class__
 
-    @coroutine
     def connect(self):
-        try:
-            self._connection = yield async_call_method(Connection, *self._args, **self._kwargs)
-        except Exception as e:
-            self.on_close(e)
-            raise
-        else:
-            self._connection.set_close_callback(self.on_close)
-            raise Return(self)
+        future = Future()
+        def _(connection_future):
+            if connection_future._exc_info is None:
+                self._connection = connection_future._result
+                self._connection.set_close_callback(self.on_close)
+                future.set_result(self)
+            else:
+                future.set_exc_info(connection_future._exc_info)
+        connection_future = async_call_method(Connection, *self._args, **self._kwargs)
+        IOLoop.current().add_future(connection_future, _)
+        return future
 
-    def on_close(self, reason=None):
+    def on_close(self):
         self._closed = True
-        if self._close_callback:
+        if self._close_callback and callable(self._close_callback):
             self._close_callback(self)
-            self._close_callback = None
+        self._close_callback = None
 
     def set_close_callback(self, callback):
         self._close_callback = callback

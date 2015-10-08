@@ -1,10 +1,13 @@
-# encoding: utf-8
+# -*- coding: utf-8 -*-
+# 14-8-8
+# create by: snower
+
 from .client import Client
 from .cursor import Cursor, DictCursor, SSCursor, SSDictCursor
 from .pool import ConnectionPool
 
-version = "0.1.2"
-version_info = (0, 1, 2)
+version = "0.1.3"
+version_info = (0, 1, 3)
 
 
 def connect(*args, **kwargs):

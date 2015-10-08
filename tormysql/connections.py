@@ -28,9 +28,6 @@ else:
 
 
 class Connection(_Connection):
-    _socket = None
-    __slots__ = ['socket', '_loop', '_rfile', '_rbuffer', '_rbuffer_size', '_close_callback']
-
     def __getattr__(self, item):
         if item is 'socket':
             return self._socket
@@ -41,6 +38,7 @@ class Connection(_Connection):
         self._rbuffer = StringIO(b'')
         self._rbuffer_size = 0
         self._loop = None
+        self._socket = None
         super(Connection, self).__init__(*args, **kwargs)
 
     def set_close_callback(self, callback):
@@ -83,34 +81,27 @@ class Connection(_Connection):
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             if self.no_delay:
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-
-            child_gr = greenlet.getcurrent()
             sock = IOStream(sock)
 
-            def on_close(reason=None):
-                if self.socket:
-                    return self.close()
-                else:
-                    return child_gr.throw(IOError(reason))
-
-            sock.set_close_callback(on_close)
-
+            child_gr = greenlet.getcurrent()
             main = child_gr.parent
             assert main is not None, "Execut must be running in child greenlet"
 
             if self.connect_timeout:
                 def timeout():
                     if not self.socket:
-                        sock.close()
-                        child_gr.throw(IOError("connection timeout"))
+                        sock.close((None, IOError("connection timeout")))
+                self._loop.call_later(self.connect_timeout, timeout)
 
-                IOLoop.current().call_later(self.connect_timeout, timeout)
+            def connected(future):
+                if future._exc_info is not None:
+                    child_gr.throw(future.exception())
+                else:
+                    self.socket = sock
+                    child_gr.switch()
 
-            def connected():
-                self.socket = sock
-                child_gr.switch()
-
-            sock.connect(address, connected)
+            future = sock.connect(address)
+            self._loop.add_future(future, connected)
             main.switch()
 
             self._rfile = self.socket

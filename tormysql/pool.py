@@ -9,14 +9,6 @@ from tornado.concurrent import Future
 from tornado.ioloop import IOLoop
 from .client import Client
 
-
-try:
-    ConnectionError
-except NameError:
-    class ConnectionError(Exception):
-        pass
-
-
 class ConnectionPoolClosedError(Exception):
     pass
 
@@ -34,8 +26,6 @@ class ConnectionUsedError(Exception):
 
 
 class Connection(Client):
-    __slots__ = ['_pool', 'idle_time', 'used_time']
-
     def __init__(self, pool, *args, **kwargs):
         self._pool = pool
         self.idle_time = time.time()
@@ -58,12 +48,6 @@ class Connection(Client):
 
 
 class ConnectionPool(object):
-    __slots__ = [
-        '_max_connections', '_idle_seconds', '_args', '_kwargs', '_connections',
-        '_used_connections', '_connections_count', '_wait_connections', '_closed',
-        '_close_future', '_check_idle_callback'
-    ]
-
     def __init__(self, *args, **kwargs):
         self._max_connections = kwargs.pop("max_connections") if "max_connections" in kwargs else 1
         self._idle_seconds = kwargs.pop("idle_seconds") if "idle_seconds" in kwargs else 0
@@ -83,11 +67,11 @@ class ConnectionPool(object):
 
     def init_connection(self, callback):
         def on_connected(connection_future):
-            try:
-                result = connection_future.result()
-                callback(True, result)
-            except Exception as e:
-                callback(False, e)
+            if connection_future._exc_info is None:
+                connection = connection_future._result
+                callback(True, connection)
+            else:
+                callback(False, connection_future._exc_info)
 
         connection = Connection(self, *self._args, **self._kwargs)
         connection.set_close_callback(self.connection_close_callback)
@@ -101,18 +85,17 @@ class ConnectionPool(object):
             self._check_idle_callback = True
 
     def get_connection(self):
-        future = Future()
-
         if self._closed:
             raise ConnectionPoolClosedError()
 
+        future = Future()
         if not self._connections:
             if self._connections_count < self._max_connections:
                 def on_connect(succed, result):
                     if succed:
                         future.set_result(result)
                     else:
-                        future.set_exception(ConnectionError(result))
+                        future.set_exc_info(result)
 
                 self.init_connection(on_connect)
             else:
