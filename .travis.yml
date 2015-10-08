@@ -1,0 +1,19 @@
+language: python
+python:
+  - "2.6"
+  - "2.7"
+  - "3.3"
+  - "3.4"
+  - "3.5"
+test:
+  adapter: mysql2
+  database: test
+  username: travis
+  encoding: utf8
+env:
+  - MYSQL_POOL=20 MYSQL_HOST=127.0.0.1 MYSQL_USER=travis MYSQL_PASSWD='' MYSQL_DB=mysql MYSQL_CHARSET=utf8
+install: "pip install -e ."
+before_script:
+  - mysql -e 'create database test;'
+  - pip install -r requirements.dev.txt
+script: ./run-tests

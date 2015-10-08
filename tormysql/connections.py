@@ -4,12 +4,20 @@
 
 from __future__ import absolute_import, division, print_function, with_statement
 
-import time
 import greenlet
-from pymysql.connections import *
+import socket
+import ssl
+import sys
+import struct
+from pymysql import err, text_type
+from pymysql.charset import charset_by_name
+from pymysql.util import int2byte
+from pymysql.constants import COMMAND, CLIENT
+from pymysql.connections import Connection as _Connection, pack_int24, dump_packet, DEBUG
 from pymysql.connections import _scramble, _scramble_323
 from tornado.iostream import IOStream, StreamClosedError
 from tornado.ioloop import IOLoop
+
 
 if sys.version_info[0] >=3:
     import io
@@ -18,7 +26,16 @@ else:
     import cStringIO
     StringIO = cStringIO.StringIO
 
-class Connection(Connection):
+
+class Connection(_Connection):
+    _socket = None
+    __slots__ = ['socket', '_loop', '_rfile', '_rbuffer', '_rbuffer_size', '_close_callback']
+
+    def __getattr__(self, item):
+        if item is 'socket':
+            return self._socket
+        return getattr(self, item)
+
     def __init__(self, *args, **kwargs):
         self._close_callback = None
         self._rbuffer = StringIO(b'')
@@ -30,10 +47,12 @@ class Connection(Connection):
         self._close_callback = callback
 
     def close(self):
-        if self._close_callback:
+        if self._close_callback and callable(self._close_callback):
             self._close_callback()
+
         if self.socket is None:
             raise err.Error("Already closed")
+
         send_data = struct.pack('<iB', 1, COMMAND.COM_QUIT)
         try:
             self._write_bytes(send_data)
@@ -64,9 +83,18 @@ class Connection(Connection):
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             if self.no_delay:
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            sock = IOStream(sock)
 
             child_gr = greenlet.getcurrent()
+            sock = IOStream(sock)
+
+            def on_close(reason=None):
+                if self.socket:
+                    return self.close()
+                else:
+                    return child_gr.throw(IOError(reason))
+
+            sock.set_close_callback(on_close)
+
             main = child_gr.parent
             assert main is not None, "Execut must be running in child greenlet"
 
@@ -75,14 +103,13 @@ class Connection(Connection):
                     if not self.socket:
                         sock.close()
                         child_gr.throw(IOError("connection timeout"))
-                IOLoop.current().add_timeout(time.time() + self.connect_timeout, timeout)
+
+                IOLoop.current().call_later(self.connect_timeout, timeout)
 
             def connected():
-                def close_callback():
-                    self.close()
-                sock.set_close_callback(close_callback)
                 self.socket = sock
                 child_gr.switch()
+
             sock.connect(address, connected)
             main.switch()
 
@@ -176,6 +203,7 @@ class Connection(Connection):
             child_gr = greenlet.getcurrent()
             main = child_gr.parent
             assert main is not None, "Execut must be running in child greenlet"
+
             def finish(future):
                 try:
                     stream = future.result()
@@ -184,11 +212,11 @@ class Connection(Connection):
                     child_gr.throw(e)
 
             future = self.socket.start_tls(None, {
-                "keyfile":self.key,
-                "certfile":self.cert,
-                "ssl_version":ssl.PROTOCOL_TLSv1,
-                "cert_reqs":ssl.CERT_REQUIRED,
-                "ca_certs":self.ca,
+                "keyfile": self.key,
+                "certfile": self.cert,
+                "ssl_version": ssl.PROTOCOL_TLSv1,
+                "cert_reqs": ssl.CERT_REQUIRED,
+                "ca_certs": self.ca,
             })
             IOLoop.current().add_future(future, finish)
             self.socket = main.switch()
@@ -205,7 +233,8 @@ class Connection(Connection):
         data = pack_int24(len(data)) + int2byte(next_packet) + data
         next_packet += 2
 
-        if DEBUG: dump_packet(data)
+        if DEBUG:
+            dump_packet(data)
 
         self._write_bytes(data)
 

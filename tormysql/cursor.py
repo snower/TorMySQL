@@ -1,12 +1,17 @@
 # -*- coding: utf-8 -*-
 # 14-8-8
 # create by: snower
-
+from tornado.ioloop import IOLoop
 from tornado.concurrent import TracebackFuture
-from pymysql.cursors import Cursor as OriginCursor, DictCursor as OriginDictCursor, SSCursor as OriginSSCursor, SSDictCursor as OriginSSDictCursor
+from pymysql.cursors import (
+    Cursor as OriginCursor, DictCursor as OriginDictCursor,
+    SSCursor as OriginSSCursor, SSDictCursor as OriginSSDictCursor,
+    DictCursorMixin)
 from .util import async_call_method
 
+
 class Cursor(object):
+    __slots__ = ['_cursor', ]
     __delegate_class__ = OriginCursor
 
     def __init__(self, cursor):
@@ -15,6 +20,7 @@ class Cursor(object):
     def __del__(self):
         if self._cursor:
             future = async_call_method(self._cursor.close)
+
             def do_close(future):
                 self._cursor = None
             future.add_done_callback(do_close)
@@ -25,6 +31,7 @@ class Cursor(object):
             future.set_result(None)
             return future
         future = async_call_method(self._cursor.close)
+
         def do_close(future):
             self._cursor = None
         future.add_done_callback(do_close)
@@ -57,12 +64,22 @@ class Cursor(object):
     def __getattr__(self, name):
         return getattr(self._cursor, name)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        IOLoop.current().add_callback(self.close)
+
+
 setattr(OriginCursor, "__tormysql_class__", Cursor)
+
 
 class DictCursor(Cursor):
     __delegate_class__ = OriginDictCursor
 
+
 setattr(OriginDictCursor, "__tormysql_class__", DictCursor)
+
 
 class SSCursor(Cursor):
     __delegate_class__ = OriginSSCursor
@@ -85,10 +102,35 @@ class SSCursor(Cursor):
     def scroll(self, value, mode='relative'):
         return async_call_method(self._cursor.scroll, value, mode)
 
-
 setattr(OriginSSCursor, "__tormysql_class__", SSCursor)
+
+
+class DBRow(object):
+    __slots__ = ['__row']
+
+    def __init__(self, *args, **kwargs):
+        self.__row = dict(*args, **kwargs)
+
+    def __getattr__(self, item):
+        return self.__row[item]
+
+    def __getitem__(self, item):
+        return self.__row[item]
+
+    def __contains__(self, item):
+        return item in self.__row
+
+    def __repr__(self):
+        return "Row({0})".format(", ".join("{0}={1!r}".format(k, v) for k, v in self.__row.items()))
+
+    def __str__(self):
+        return self.__repr__()
+
 
 class SSDictCursor(SSCursor):
     __delegate_class__ = OriginSSDictCursor
+
+DictCursorMixin.dict_type = DBRow
+
 
 setattr(OriginSSDictCursor, "__tormysql_class__", SSDictCursor)
