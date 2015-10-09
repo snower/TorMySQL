@@ -60,6 +60,7 @@ class ConnectionPool(object):
         self._closed = False
         self._close_future = None
         self._check_idle_callback = False
+        self._check_close_callback = False
 
     @property
     def closed(self):
@@ -89,35 +90,50 @@ class ConnectionPool(object):
             raise ConnectionPoolClosedError()
 
         future = Future()
-        if not self._connections:
-            if self._connections_count < self._max_connections:
-                def on_connect(succed, result):
-                    if succed:
-                        future.set_result(result)
-                    else:
-                        future.set_exc_info(result)
-
-                self.init_connection(on_connect)
-            else:
-                self._wait_connections.append(future)
-        else:
+        while self._connections:
             connection = self._connections.pop()
             self._used_connections[id(connection)] = connection
             connection.used_time = time.time()
-            future.set_result(connection)
+            if connection.open:
+                future.set_result(connection)
+                return future
 
+        if self._connections_count < self._max_connections:
+            def on_connect(succed, result):
+                if succed:
+                    future.set_result(result)
+                else:
+                    future.set_exc_info(result)
+
+            self.init_connection(on_connect)
+        else:
+            self._wait_connections.append(future)
         return future
 
     Connection = get_connection
+    connect = get_connection
 
     def release_connection(self, connection):
         if self._closed:
             return connection.do_close()
 
+        if not connection.open:
+            future = Future()
+            future.set_result(None)
+            return future
+
         if self._wait_connections:
             wait_future = self._wait_connections.popleft()
             connection.used_time = time.time()
             IOLoop.current().add_callback(wait_future.set_result, connection)
+
+            while self._wait_connections and self._connections:
+                connection = self._connections.pop()
+                self._used_connections[id(connection)] = connection
+                connection.used_time = time.time()
+                if connection.open:
+                    wait_future = self._wait_connections.popleft()
+                    wait_future.set_result(connection)
         else:
             try:
                 del self._used_connections[id(connection)]
@@ -129,6 +145,7 @@ class ConnectionPool(object):
                     raise ConnectionNotFoundError()
                 else:
                     raise ConnectionNotUsedError()
+
         future = Future()
         future.set_result(None)
         return future
@@ -140,6 +157,12 @@ class ConnectionPool(object):
             return connection.do_close()
         except ValueError:
             raise ConnectionUsedError()
+
+    def check_close_callback(self):
+        self._check_close_callback = False
+        for connection in list(self._connections):
+            if connection.open:
+                connection._read_to_buffer()
 
     def connection_close_callback(self, connection):
         try:
@@ -156,6 +179,10 @@ class ConnectionPool(object):
                 self._close_future.set_result(None)
                 self._close_future = None
             IOLoop.current().add_callback(do_close)
+
+        if not self._check_close_callback:
+            IOLoop.current().add_callback(self.check_close_callback)
+            self._check_close_callback = True
 
     def close(self):
         if self._closed:

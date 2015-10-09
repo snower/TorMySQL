@@ -28,17 +28,12 @@ else:
 
 
 class Connection(_Connection):
-    def __getattr__(self, item):
-        if item is 'socket':
-            return self._socket
-        return getattr(self, item)
-
     def __init__(self, *args, **kwargs):
         self._close_callback = None
         self._rbuffer = StringIO(b'')
         self._rbuffer_size = 0
         self._loop = None
-        self._socket = None
+        self.socket = None
         super(Connection, self).__init__(*args, **kwargs)
 
     def set_close_callback(self, callback):
@@ -62,6 +57,10 @@ class Connection(_Connection):
             self._rfile = None
             sock.set_close_callback(None)
             sock.close()
+
+    @property
+    def open(self):
+        return self.socket is not None and not self.socket.closed()
 
     def __del__(self):
         if self.socket:
