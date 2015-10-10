@@ -66,7 +66,7 @@ class Connection(_Connection):
         if self.socket:
             self.close()
 
-    def _connect(self):
+    def connect(self):
         self._loop = IOLoop.current()
         try:
             if self.unix_socket and self.host in ('localhost', '127.0.0.1'):
@@ -170,7 +170,7 @@ class Connection(_Connection):
 
     def _request_authentication(self):
         self.client_flag |= CLIENT.CAPABILITIES
-        if self.server_version.startswith('5'):
+        if int(self.server_version.split('.', 1)[0]) >= 5:
             self.client_flag |= CLIENT.MULTI_RESULTS
 
         if self.user is None:
@@ -201,12 +201,13 @@ class Connection(_Connection):
                 except Exception as e:
                     child_gr.throw(e)
 
+            cert_reqs = ssl.CERT_NONE if self.ca is None else ssl.CERT_REQUIRED
             future = self.socket.start_tls(None, {
                 "keyfile": self.key,
                 "certfile": self.cert,
                 "ssl_version": ssl.PROTOCOL_TLSv1,
                 "cert_reqs": ssl.CERT_REQUIRED,
-                "ca_certs": self.ca,
+                "ca_certs": cert_reqs,
             })
             IOLoop.current().add_future(future, finish)
             self.socket = main.switch()
