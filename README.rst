@@ -1,7 +1,7 @@
 tormysql
 ========
 
-.. image:: https://travis-ci.org/mosquito/tormysql.svg
+.. image:: https://travis-ci.org/snower/TorMySQL.svg
     :target: https://github.com/snower/TorMySQL
 
 Tornado asynchronous MySQL Driver
