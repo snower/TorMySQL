@@ -11,5 +11,7 @@ env:
 install: "pip install -e ."
 before_script:
   - mysql -e "create database IF NOT EXISTS test;" -utravis
+  - mysql -e "CREATE TABLE test (id INT, data VARCHAR(100));" -utravis
+  - mysql -e "INSERT INTO test (id, data) VALUES (1, 'test');" -utravis
   - pip install -r requirements.dev.txt
 script: ./run-tests

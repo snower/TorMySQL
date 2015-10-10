@@ -21,7 +21,7 @@ class BaseTestCase(AsyncTestCase):
     def setUp(self):
         super(BaseTestCase, self).setUp()
         self.pool = ConnectionPool(
-            max_connections=int(os.getenv("MYSQL_POOL", "5")),
+            max_connections=int(os.getenv("MYSQL_POOL", 5)),
             idle_seconds=7200,
             **self.PARAMS
         )

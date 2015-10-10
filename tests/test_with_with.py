@@ -9,7 +9,7 @@ from . import BaseTestCase
 class TestWithWith(BaseTestCase):
     @gen_test
     def test1(self):
-        sql = "select * from user limit 1"
+        sql = "select * from test limit 1"
         with (yield self.pool.Connection()) as connection:
             with connection.cursor() as cursor:
                 yield cursor.execute(sql)
@@ -22,7 +22,7 @@ class TestAsyncCursor(BaseTestCase):
         host=os.getenv("MYSQL_HOST", "127.0.0.1"),
         user=os.getenv("MYSQL_USER", "root"),
         passwd=os.getenv("MYSQL_PASSWD", ""),
-        db=os.getenv("MYSQL_DB", "mysql"),
+        db=os.getenv("MYSQL_DB", "test"),
         charset=os.getenv("MYSQL_CHARSET", "utf8"),
         no_delay=True,
         sql_mode="REAL_AS_FLOAT",
@@ -36,7 +36,7 @@ class TestAsyncCursor(BaseTestCase):
         with (yield self.pool.Connection()) as connection:
             with connection.cursor() as cursor:
                 yield cursor.execute(sql)
-                result = yield cursor.fetchone()
+                result = cursor.fetchone()
                 self.assertTrue('test' in result)
                 self.assertEqual(result['test'], 1)
                 self.assertEqual(result.test, 1)

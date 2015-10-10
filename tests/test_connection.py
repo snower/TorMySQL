@@ -9,12 +9,6 @@ from maproxy.proxyserver import ProxyServer
 from . import BaseTestCase
 
 
-try:
-    ConnectionError
-except NameError:
-    from tormysql.pool import ConnectionError
-
-
 class TestConnection(BaseTestCase):
     def setUp(self):
         super(BaseTestCase, self).setUp()
@@ -96,9 +90,6 @@ class TestConnection(BaseTestCase):
         try:
             self.proxy.stop()
             yield pool.Connection()
-        except ConnectionError:
-            pass
-        else:
-            raise AssertionError("Unexpected normal situation")
         finally:
             pool.close()
+        raise AssertionError("Unexpected normal situation")

@@ -63,7 +63,7 @@ class Cursor(object):
     def __exit__(self, *exc_info):
         "WARING: if cursor not read all data, the connection next query is error"
         del exc_info
-        if self._cursor._result.has_next:
+        if self._cursor._result and self._cursor._result.has_next:
             raise CursorNotReadAllDataError()
         self.close()
 
