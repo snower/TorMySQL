@@ -40,8 +40,9 @@ class Connection(Client):
     def __enter__(self):
         return self
 
-    def __exit__(self, *args):
-        IOLoop.current().add_callback(self.close)
+    def __exit__(self, *exc_info):
+        del exc_info
+        self.close()
 
     def do_close(self):
         return super(Connection, self).close()
@@ -162,7 +163,7 @@ class ConnectionPool(object):
         self._check_close_callback = False
         for connection in list(self._connections):
             if connection.open:
-                connection._read_to_buffer()
+                connection._handle_read()
 
     def connection_close_callback(self, connection):
         try:

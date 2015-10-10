@@ -2,13 +2,14 @@
 # 14-8-8
 # create by: snower
 
-from tornado.ioloop import IOLoop
 from tornado.concurrent import TracebackFuture
 from pymysql.cursors import (
     Cursor as OriginCursor, DictCursor as OriginDictCursor,
     SSCursor as OriginSSCursor, SSDictCursor as OriginSSDictCursor)
 from .util import async_call_method
 
+class CursorNotReadAllDataError(Exception):
+    pass
 
 class Cursor(object):
     __delegate_class__ = OriginCursor
@@ -18,11 +19,7 @@ class Cursor(object):
 
     def __del__(self):
         if self._cursor:
-            future = async_call_method(self._cursor.close)
-
-            def do_close(future):
-                self._cursor = None
-            future.add_done_callback(do_close)
+            self.close()
 
     def close(self):
         if self._cursor is None:
@@ -30,10 +27,7 @@ class Cursor(object):
             future.set_result(None)
             return future
         future = async_call_method(self._cursor.close)
-
-        def do_close(future):
-            self._cursor = None
-        future.add_done_callback(do_close)
+        self._cursor = None
         return future
 
     def execute(self, query, args=None):
@@ -66,8 +60,12 @@ class Cursor(object):
     def __enter__(self):
         return self
 
-    def __exit__(self, *args):
-        IOLoop.current().add_callback(self.close)
+    def __exit__(self, *exc_info):
+        "WARING: if cursor not read all data, the connection next query is error"
+        del exc_info
+        if self._cursor._result.has_next:
+            raise CursorNotReadAllDataError()
+        self.close()
 
 setattr(OriginCursor, "__tormysql_class__", Cursor)
 
