@@ -1,7 +1,6 @@
 # encoding: utf-8
 from tormysql.pool import ConnectionNotFoundError
 import os
-import socket
 from pymysql import OperationalError
 from tornado.testing import gen_test
 from tormysql import Connection, ConnectionPool
@@ -14,12 +13,8 @@ class TestConnection(BaseTestCase):
         super(BaseTestCase, self).setUp()
         self.PARAMS = dict(self.PARAMS)
 
-        s = socket.socket()
-        s.bind(('localhost', 0))
-        _, self.port = s.getsockname()
-
+        self.port = 3307
         self.proxy = ProxyServer(self.PARAMS['host'], self.PARAMS['port'])
-        s.close()
         self.proxy.listen(self.port)
         self.PARAMS['port'] = self.port
 
