@@ -11,7 +11,7 @@ class BaseTestCase(AsyncTestCase):
         port=int(os.getenv("MYSQL_PORT", "3306")),
         user=os.getenv("MYSQL_USER", "root"),
         passwd=os.getenv("MYSQL_PASSWD", ""),
-        db=os.getenv("MYSQL_DB", "mysql"),
+        db=os.getenv("MYSQL_DB", "test"),
         charset=os.getenv("MYSQL_CHARSET", "utf8"),
         no_delay=True,
         sql_mode="REAL_AS_FLOAT",
