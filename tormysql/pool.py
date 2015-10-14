@@ -2,6 +2,10 @@
 # 14-8-8
 # create by: snower
 
+'''
+MySQL asynchronous client pool.
+'''
+
 import time
 import logging
 from collections import deque

@@ -2,6 +2,10 @@
 # 14-8-8
 # create by: snower
 
+'''
+MySQL asynchronous client.
+'''
+
 from tornado.ioloop import IOLoop
 from tornado.gen import Future
 from .util import async_call_method
