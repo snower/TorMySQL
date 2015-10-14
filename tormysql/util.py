@@ -8,18 +8,17 @@ from tornado.concurrent import Future
 
 def async_call_method(fun, *args, **kwargs):
     future = Future()
-    io_loop = IOLoop.current()
 
     def finish():
         try:
             result = fun(*args, **kwargs)
             if future._callbacks:
-                io_loop.add_callback(future.set_result, result)
+                IOLoop.current().add_callback(future.set_result, result)
             else:
                 future.set_result(result)
         except:
             if future._callbacks:
-                io_loop.add_callback(future.set_exc_info, sys.exc_info())
+                IOLoop.current().add_callback(future.set_exc_info, sys.exc_info())
             else:
                 future.set_exc_info(sys.exc_info())
 

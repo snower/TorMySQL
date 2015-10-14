@@ -14,7 +14,7 @@ class TestWithWith(BaseTestCase):
             with connection.cursor() as cursor:
                 yield cursor.execute(sql)
                 datas = cursor.fetchall()
-                print (datas)
+                self.assertTrue(bool(datas))
 
 
 class TestAsyncCursor(BaseTestCase):
@@ -34,8 +34,9 @@ class TestAsyncCursor(BaseTestCase):
     def test1(self):
         sql = "select 1 as test"
         with (yield self.pool.Connection()) as connection:
-            with connection.cursor() as cursor:
-                yield cursor.execute(sql)
-                result = yield cursor.fetchone()
-                self.assertTrue('test' in result)
-                self.assertEqual(result['test'], 1)
+            cursor = connection.cursor()
+            yield cursor.execute(sql)
+            result = yield cursor.fetchone()
+            yield cursor.close()
+            self.assertTrue('test' in result)
+            self.assertEqual(result['test'], 1)

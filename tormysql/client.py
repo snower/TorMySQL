@@ -70,6 +70,9 @@ class Client(object):
         return async_call_method(self._connection.select_db, db)
 
     def cursor(self, cursor_cls=None):
+        if cursor_cls is None:
+            cursor_cls = self._connection.cursorclass
+            
         cursor = self._connection.cursor(
             cursor_cls.__delegate_class__ if cursor_cls and issubclass(cursor_cls, Cursor) else cursor_cls
         )

@@ -34,6 +34,12 @@ class Cursor(object):
         self._cursor = None
         return future
 
+    def nextset(self):
+        return async_call_method(self._cursor.nextset)
+
+    def mogrify(self, query, args=None):
+        return self._cursor.mogrify(query, args)
+
     def execute(self, query, args=None):
         return async_call_method(self._cursor.execute, query, args)
 
@@ -82,6 +88,19 @@ setattr(OriginDictCursor, "__tormysql_class__", DictCursor)
 
 class SSCursor(Cursor):
     __delegate_class__ = OriginSSCursor
+
+    def close(self):
+        if self._cursor is None:
+            self._cursor.close()
+            future = Future()
+            future.set_result(None)
+        else:
+            future = async_call_method(self._cursor.close)
+        self._cursor = None
+        return future
+
+    def read_next(self):
+        return async_call_method(self._cursor.read_next)
 
     def fetchone(self):
         return async_call_method(self._cursor.fetchone)
