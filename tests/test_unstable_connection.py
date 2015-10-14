@@ -15,7 +15,7 @@ except NameError:
     from tormysql.pool import ConnectionError
 
 
-class TestConnection(BaseTestCase):
+class TestUnstableConnection(BaseTestCase):
     def setUp(self):
         super(BaseTestCase, self).setUp()
         self.PARAMS = dict(self.PARAMS)
