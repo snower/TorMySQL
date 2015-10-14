@@ -9,8 +9,7 @@ from . import BaseTestCase
 class TestWithWith(BaseTestCase):
     @gen_test
     def test1(self):
-        c = int(os.getenv("MYSQL_POOL", "5")) * 3
-        yield [self._exec() for _ in range(c)]
+        yield [self._exec() for _ in range(2)]
 
     @coroutine
     def _exec(self):

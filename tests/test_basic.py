@@ -6,7 +6,7 @@ from . import BaseTestCase
 class TestBasic(BaseTestCase):
     @gen_test
     def test0(self):
-        sql = "select * from user limit 1"
+        sql = "select * from test limit 1"
         connection = yield self.pool.Connection()
         cursor = connection.cursor()
         yield cursor.execute(sql)

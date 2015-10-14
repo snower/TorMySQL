@@ -28,19 +28,12 @@ else:
 
 
 class Connection(_Connection):
-    _socket = None
-    __slots__ = ['socket', '_loop', '_rfile', '_rbuffer', '_rbuffer_size', '_close_callback']
-
-    def __getattr__(self, item):
-        if item is 'socket':
-            return self._socket
-        return getattr(self, item)
-
     def __init__(self, *args, **kwargs):
         self._close_callback = None
         self._rbuffer = StringIO(b'')
         self._rbuffer_size = 0
         self._loop = None
+        self.socket = None
         super(Connection, self).__init__(*args, **kwargs)
 
     def set_close_callback(self, callback):
@@ -65,11 +58,15 @@ class Connection(_Connection):
             sock.set_close_callback(None)
             sock.close()
 
+    @property
+    def open(self):
+        return self.socket is not None and not self.socket.closed()
+
     def __del__(self):
         if self.socket:
             self.close()
 
-    def _connect(self):
+    def connect(self):
         self._loop = IOLoop.current()
         try:
             if self.unix_socket and self.host in ('localhost', '127.0.0.1'):
@@ -83,34 +80,27 @@ class Connection(_Connection):
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             if self.no_delay:
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-
-            child_gr = greenlet.getcurrent()
             sock = IOStream(sock)
 
-            def on_close(reason=None):
-                if self.socket:
-                    return self.close()
-                else:
-                    return child_gr.throw(IOError(reason))
-
-            sock.set_close_callback(on_close)
-
+            child_gr = greenlet.getcurrent()
             main = child_gr.parent
             assert main is not None, "Execut must be running in child greenlet"
 
             if self.connect_timeout:
                 def timeout():
                     if not self.socket:
-                        sock.close()
-                        child_gr.throw(IOError("connection timeout"))
+                        sock.close((None, IOError("connection timeout")))
+                self._loop.call_later(self.connect_timeout, timeout)
 
-                IOLoop.current().call_later(self.connect_timeout, timeout)
+            def connected(future):
+                if future._exc_info is not None:
+                    child_gr.throw(future.exception())
+                else:
+                    self.socket = sock
+                    child_gr.switch()
 
-            def connected():
-                self.socket = sock
-                child_gr.switch()
-
-            sock.connect(address, connected)
+            future = sock.connect(address)
+            self._loop.add_future(future, connected)
             main.switch()
 
             self._rfile = self.socket
@@ -180,7 +170,7 @@ class Connection(_Connection):
 
     def _request_authentication(self):
         self.client_flag |= CLIENT.CAPABILITIES
-        if self.server_version.startswith('5'):
+        if int(self.server_version.split('.', 1)[0]) >= 5:
             self.client_flag |= CLIENT.MULTI_RESULTS
 
         if self.user is None:
@@ -211,12 +201,13 @@ class Connection(_Connection):
                 except Exception as e:
                     child_gr.throw(e)
 
+            cert_reqs = ssl.CERT_NONE if self.ca is None else ssl.CERT_REQUIRED
             future = self.socket.start_tls(None, {
                 "keyfile": self.key,
                 "certfile": self.cert,
                 "ssl_version": ssl.PROTOCOL_TLSv1,
                 "cert_reqs": ssl.CERT_REQUIRED,
-                "ca_certs": self.ca,
+                "ca_certs": cert_reqs,
             })
             IOLoop.current().add_future(future, finish)
             self.socket = main.switch()

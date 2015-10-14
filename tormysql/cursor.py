@@ -1,17 +1,20 @@
 # -*- coding: utf-8 -*-
 # 14-8-8
 # create by: snower
-from tornado.ioloop import IOLoop
-from tornado.concurrent import TracebackFuture
+
+from tornado.concurrent import Future
 from pymysql.cursors import (
     Cursor as OriginCursor, DictCursor as OriginDictCursor,
-    SSCursor as OriginSSCursor, SSDictCursor as OriginSSDictCursor,
-    DictCursorMixin)
+    SSCursor as OriginSSCursor, SSDictCursor as OriginSSDictCursor)
 from .util import async_call_method
 
+class CursorNotReadAllDataError(Exception):
+    pass
+
+class CursorNotIterError(Exception):
+    pass
 
 class Cursor(object):
-    __slots__ = ['_cursor', ]
     __delegate_class__ = OriginCursor
 
     def __init__(self, cursor):
@@ -19,23 +22,23 @@ class Cursor(object):
 
     def __del__(self):
         if self._cursor:
-            future = async_call_method(self._cursor.close)
-
-            def do_close(future):
-                self._cursor = None
-            future.add_done_callback(do_close)
+            self.close()
 
     def close(self):
-        if self._cursor is None:
-            future = TracebackFuture()
+        if self._cursor is None or not self._cursor._result or not self._cursor._result.has_next:
+            self._cursor.close()
+            future = Future()
             future.set_result(None)
-            return future
-        future = async_call_method(self._cursor.close)
-
-        def do_close(future):
-            self._cursor = None
-        future.add_done_callback(do_close)
+        else:
+            future = async_call_method(self._cursor.close)
+        self._cursor = None
         return future
+
+    def nextset(self):
+        return async_call_method(self._cursor.nextset)
+
+    def mogrify(self, query, args=None):
+        return self._cursor.mogrify(query, args)
 
     def execute(self, query, args=None):
         return async_call_method(self._cursor.execute, query, args)
@@ -67,9 +70,12 @@ class Cursor(object):
     def __enter__(self):
         return self
 
-    def __exit__(self, *args):
-        IOLoop.current().add_callback(self.close)
-
+    def __exit__(self, *exc_info):
+        "WARING: if cursor not read all data, the connection next query is error"
+        del exc_info
+        if self._cursor._result and self._cursor._result.has_next:
+            raise CursorNotReadAllDataError("if cursor not read all data, the connection next query is error")
+        self.close()
 
 setattr(OriginCursor, "__tormysql_class__", Cursor)
 
@@ -77,12 +83,21 @@ setattr(OriginCursor, "__tormysql_class__", Cursor)
 class DictCursor(Cursor):
     __delegate_class__ = OriginDictCursor
 
-
 setattr(OriginDictCursor, "__tormysql_class__", DictCursor)
 
 
 class SSCursor(Cursor):
     __delegate_class__ = OriginSSCursor
+
+    def close(self):
+        if self._cursor is None:
+            self._cursor.close()
+            future = Future()
+            future.set_result(None)
+        else:
+            future = async_call_method(self._cursor.close)
+        self._cursor = None
+        return future
 
     def read_next(self):
         return async_call_method(self._cursor.read_next)
@@ -90,47 +105,33 @@ class SSCursor(Cursor):
     def fetchone(self):
         return async_call_method(self._cursor.fetchone)
 
-    def fetchall(self):
-        return async_call_method(self._cursor.fetchall)
-
-    def __iter__(self):
-        return self.fetchall()
-
     def fetchmany(self, size=None):
         return async_call_method(self._cursor.fetchmany, size)
+
+    def fetchall(self):
+        return async_call_method(self._cursor.fetchall)
 
     def scroll(self, value, mode='relative'):
         return async_call_method(self._cursor.scroll, value, mode)
 
+    def __iter__(self):
+        def next():
+            future = async_call_method(self._cursor.fetchone)
+            if future.done() and future._result is None:
+                return None
+            return future
+        return iter(next, None)
+
+    def __enter__(self):
+        raise AttributeError("SSCursor not support with statement")
+
+    def __exit__(self, *exc_info):
+        raise AttributeError("SSCursor not support with statement")
+
 setattr(OriginSSCursor, "__tormysql_class__", SSCursor)
-
-
-class DBRow(object):
-    __slots__ = ['__row']
-
-    def __init__(self, *args, **kwargs):
-        self.__row = dict(*args, **kwargs)
-
-    def __getattr__(self, item):
-        return self.__row[item]
-
-    def __getitem__(self, item):
-        return self.__row[item]
-
-    def __contains__(self, item):
-        return item in self.__row
-
-    def __repr__(self):
-        return "Row({0})".format(", ".join("{0}={1!r}".format(k, v) for k, v in self.__row.items()))
-
-    def __str__(self):
-        return self.__repr__()
 
 
 class SSDictCursor(SSCursor):
     __delegate_class__ = OriginSSDictCursor
-
-DictCursorMixin.dict_type = DBRow
-
 
 setattr(OriginSSDictCursor, "__tormysql_class__", SSDictCursor)
