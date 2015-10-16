@@ -167,7 +167,7 @@ class ConnectionPool(object):
         self._check_close_callback = False
         for connection in list(self._connections):
             if connection.open:
-                connection._handle_read()
+                connection.socket._handle_read()
 
     def connection_close_callback(self, connection):
         try:
@@ -180,10 +180,9 @@ class ConnectionPool(object):
             except ValueError:
                 logging.warning("Close unknown Connection %s", connection)
         if self._close_future and not self._used_connections and not self._connections:
-            def do_close():
-                self._close_future.set_result(None)
-                self._close_future = None
-            IOLoop.current().add_callback(do_close)
+            close_future = self._close_future
+            IOLoop.current().add_callback(close_future.set_result, None)
+            self._close_future = None
 
         if not self._check_close_callback:
             IOLoop.current().add_callback(self.check_close_callback)
