@@ -89,7 +89,7 @@ class Connection(_Connection):
             if self.connect_timeout:
                 def timeout():
                     if not self.socket:
-                        sock.close((None, IOError("connection timeout")))
+                        sock.close((None, IOError("connect timeout"), None))
                 self._loop.call_later(self.connect_timeout, timeout)
 
             def connected(future):
@@ -124,7 +124,7 @@ class Connection(_Connection):
                 self.socket.close()
                 self.socket = None
             raise err.OperationalError(
-                2003, "Can't connect to MySQL server on %s:%s (%s)" % (self.host, self.port, e))
+                2003, "Can't connect to MySQL server on %s (%r)" % (self.unix_socket or ("%s:%s" % (self.host, self.port)), e))
 
     def _read_bytes(self, num_bytes):
         if num_bytes <= self._rbuffer_size:
@@ -195,11 +195,10 @@ class Connection(_Connection):
             assert main is not None, "Execut must be running in child greenlet"
 
             def finish(future):
-                try:
-                    stream = future.result()
-                    child_gr.switch(stream)
-                except Exception as e:
-                    child_gr.throw(e)
+                if future._exc_info is not None:
+                    child_gr.throw(future.exception())
+                else:
+                    child_gr.switch(future.result())
 
             cert_reqs = ssl.CERT_NONE if self.ca is None else ssl.CERT_REQUIRED
             future = self.socket.start_tls(None, {
@@ -209,7 +208,7 @@ class Connection(_Connection):
                 "cert_reqs": ssl.CERT_REQUIRED,
                 "ca_certs": cert_reqs,
             })
-            IOLoop.current().add_future(future, finish)
+            self._loop.add_future(future, finish)
             self.socket = main.switch()
             self._rfile = self.socket
 
