@@ -124,7 +124,7 @@ class Connection(_Connection):
                 self.socket.close()
                 self.socket = None
             raise err.OperationalError(
-                2003, "Can't connect to MySQL server on %r (%s)" % (self.host, e))
+                2003, "Can't connect to MySQL server on %s:%s (%s)" % (self.host, self.port, e))
 
     def _read_bytes(self, num_bytes):
         if num_bytes <= self._rbuffer_size:

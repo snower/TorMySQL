@@ -13,6 +13,7 @@ from tornado.concurrent import Future
 from tornado.ioloop import IOLoop
 from .client import Client
 
+
 class ConnectionPoolClosedError(Exception):
     pass
 
