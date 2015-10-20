@@ -72,13 +72,12 @@ class ConnectionPool(object):
     def closed(self):
         return self._closed
 
-    def init_connection(self, callback):
+    def init_connection(self, future):
         def on_connected(connection_future):
             if connection_future._exc_info is None:
-                connection = connection_future._result
-                callback(True, connection)
+                future.set_result(connection_future.result())
             else:
-                callback(False, connection_future._exc_info)
+                future.set_exc_info(connection_future.exc_info())
 
         connection = Connection(self, *self._args, **self._kwargs)
         connection.set_close_callback(self.connection_close_callback)
@@ -105,13 +104,7 @@ class ConnectionPool(object):
                 return future
 
         if self._connections_count < self._max_connections:
-            def on_connect(succed, result):
-                if succed:
-                    future.set_result(result)
-                else:
-                    future.set_exc_info(result)
-
-            self.init_connection(on_connect)
+            self.init_connection(future)
         else:
             self._wait_connections.append(future)
         return future

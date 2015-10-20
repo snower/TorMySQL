@@ -26,15 +26,15 @@ class Client(object):
 
     def connect(self):
         future = Future()
-        def _(connection_future):
+        def connected(connection_future):
             if connection_future._exc_info is None:
-                self._connection = connection_future._result
+                self._connection = connection_future.result()
                 self._connection.set_close_callback(self.on_close)
                 future.set_result(self)
             else:
-                future.set_exc_info(connection_future._exc_info)
+                future.set_exc_info(connection_future.exc_info())
         connection_future = async_call_method(Connection, *self._args, **self._kwargs)
-        IOLoop.current().add_future(connection_future, _)
+        IOLoop.current().add_future(connection_future, connected)
         return future
 
     def on_close(self):
