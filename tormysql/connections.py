@@ -38,6 +38,15 @@ class Connection(_Connection):
 
     def set_close_callback(self, callback):
         self._close_callback = callback
+        
+    def stream_close_callback():
+        if self.socket:
+            if self._close_callback and callable(self._close_callback):
+                self._close_callback()
+            sock = self.socket
+            self.socket = None
+            self._rfile = None
+            sock.set_close_callback(None)
 
     def close(self):
         if self._close_callback and callable(self._close_callback):
@@ -81,6 +90,7 @@ class Connection(_Connection):
             if self.no_delay:
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             sock = IOStream(sock)
+            sock.set_close_callback(self.stream_close_callback)
 
             child_gr = greenlet.getcurrent()
             main = child_gr.parent
