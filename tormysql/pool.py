@@ -81,9 +81,9 @@ class ConnectionPool(object):
 
         connection = Connection(self, *self._args, **self._kwargs)
         connection.set_close_callback(self.connection_close_callback)
+        connection_future = connection.connect()
         self._connections_count += 1
         self._used_connections[id(connection)] = connection
-        connection_future = connection.connect()
         IOLoop.current().add_future(connection_future, on_connected)
 
         if self._idle_seconds > 0 and not self._check_idle_callback:
