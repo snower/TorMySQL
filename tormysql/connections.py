@@ -39,7 +39,7 @@ class Connection(_Connection):
     def set_close_callback(self, callback):
         self._close_callback = callback
         
-    def stream_close_callback():
+    def stream_close_callback(self):
         if self.socket:
             if self._close_callback and callable(self._close_callback):
                 self._close_callback()
