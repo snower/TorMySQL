@@ -40,9 +40,12 @@ class Connection(_Connection):
         self._close_callback = callback
         
     def stream_close_callback(self):
+        if self._close_callback and callable(self._close_callback):
+            cb = self._close_callback
+            self._close_callback = None
+            cb()
+                
         if self.socket:
-            if self._close_callback and callable(self._close_callback):
-                self._close_callback()
             sock = self.socket
             self.socket = None
             self._rfile = None
@@ -50,7 +53,9 @@ class Connection(_Connection):
 
     def close(self):
         if self._close_callback and callable(self._close_callback):
-            self._close_callback()
+            cb = self._close_callback
+            self._close_callback = None
+            cb()
 
         if self.socket is None:
             raise err.Error("Already closed")
