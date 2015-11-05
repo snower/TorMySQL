@@ -66,7 +66,6 @@ class ConnectionPool(object):
         self._closed = False
         self._close_future = None
         self._check_idle_callback = False
-        self._check_close_callback = False
 
     @property
     def closed(self):
@@ -157,12 +156,6 @@ class ConnectionPool(object):
         except ValueError:
             raise ConnectionUsedError()
 
-    def check_close_callback(self):
-        self._check_close_callback = False
-        for connection in list(self._connections):
-            if connection.open:
-                connection.socket._handle_read()
-
     def connection_close_callback(self, connection):
         try:
             del self._used_connections[id(connection)]
@@ -177,10 +170,6 @@ class ConnectionPool(object):
             close_future = self._close_future
             IOLoop.current().add_callback(close_future.set_result, None)
             self._close_future = None
-
-        if not self._check_close_callback:
-            IOLoop.current().add_callback(self.check_close_callback)
-            self._check_close_callback = True
 
     def close(self):
         if self._closed:
