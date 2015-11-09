@@ -71,19 +71,31 @@ class ConnectionPool(object):
     def closed(self):
         return self._closed
 
-    def init_connection(self, future):
-        def on_connected(connection_future):
-            if connection_future._exc_info is None:
-                future.set_result(connection_future.result())
-            else:
-                future.set_exc_info(connection_future.exc_info())
+    def connection_connected_callback(self, future, connection_future):
+        if connection_future._exc_info is None:
+            future.set_result(connection_future.result())
+        else:
+            future.set_exc_info(connection_future.exc_info())
 
+            while self._wait_connections and self._connections:
+                connection = self._connections.pop()
+                self._used_connections[id(connection)] = connection
+                connection.used_time = time.time()
+                if connection.open:
+                    wait_future = self._wait_connections.popleft()
+                    IOLoop.current().add_callback(wait_future.set_result, connection)
+
+            while self._wait_connections and self._connections_count - 1 < self._max_connections:
+                wait_future = self._wait_connections.popleft()
+                IOLoop.current().add_callback(self.init_connection, wait_future)
+
+    def init_connection(self, future):
         connection = Connection(self, *self._args, **self._kwargs)
         connection.set_close_callback(self.connection_close_callback)
         connection_future = connection.connect()
         self._connections_count += 1
         self._used_connections[id(connection)] = connection
-        IOLoop.current().add_future(connection_future, on_connected)
+        IOLoop.current().add_future(connection_future, lambda connection_future: self.connection_connected_callback(future, connection_future))
 
         if self._idle_seconds > 0 and not self._check_idle_callback:
             IOLoop.current().add_timeout(time.time() + self._idle_seconds, self.check_idle_connections)
