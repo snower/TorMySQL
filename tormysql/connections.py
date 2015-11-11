@@ -154,7 +154,7 @@ class Connection(_Connection):
             self._rbuffer = StringIO(last_buf + b''.join(self._rfile._read_buffer))
             self._rfile._read_buffer.clear()
             self._rfile._read_buffer_size = 0
-            if not self._rfile._state & self._rfile.io_loop.READ:
+            if self._rfile._state and (self._rfile._state & self._rfile.io_loop.READ == 0):
                 self._rfile._state |= self._rfile.io_loop.READ
                 self._rfile.io_loop.update_handler(self._rfile.fileno(), self._rfile._state)
             return self._rbuffer.read(num_bytes)
