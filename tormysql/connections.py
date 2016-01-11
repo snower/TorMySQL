@@ -6,14 +6,13 @@ from __future__ import absolute_import, division, print_function, with_statement
 
 import greenlet
 import socket
-import ssl
 import sys
 import struct
-from pymysql import err, text_type
+import traceback
+from pymysql import err
 from pymysql.charset import charset_by_name
-from pymysql.util import int2byte
 from pymysql.constants import COMMAND, CLIENT
-from pymysql.connections import Connection as _Connection, pack_int24, dump_packet, DEBUG
+from pymysql.connections import Connection as _Connection, lenenc_int, text_type
 from pymysql.connections import _scramble, _scramble_323
 from tornado.iostream import IOStream, StreamClosedError
 from tornado.ioloop import IOLoop
@@ -92,8 +91,7 @@ class Connection(_Connection):
                 self.host_info = "socket %s:%d" % (self.host, self.port)
                 address = (self.host, self.port)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-            if self.no_delay:
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             sock = IOStream(sock)
             sock.set_close_callback(self.stream_close_callback)
 
@@ -119,6 +117,8 @@ class Connection(_Connection):
             main.switch()
 
             self._rfile = self.socket
+            self._next_seq_id = 0
+
             self._get_server_information()
             self._request_authentication()
 
@@ -138,8 +138,12 @@ class Connection(_Connection):
                 self._rfile = None
                 self.socket.close()
                 self.socket = None
-            raise err.OperationalError(
+            exc = err.OperationalError(
                 2003, "Can't connect to MySQL server on %s (%r)" % (self.unix_socket or ("%s:%s" % (self.host, self.port)), e))
+            # Keep original exception and traceback to investigate error.
+            exc.original_exception = e
+            exc.traceback = traceback.format_exc()
+            raise exc
 
     def _read_bytes(self, num_bytes):
         if num_bytes <= self._rbuffer_size:
@@ -200,13 +204,8 @@ class Connection(_Connection):
 
         data_init = struct.pack('<iIB23s', self.client_flag, 1, charset_id, b'')
 
-        next_packet = 1
-
-        if self.ssl:
-            data = pack_int24(len(data_init)) + int2byte(next_packet) + data_init
-            next_packet += 1
-
-            self._write_bytes(data)
+        if self.ssl and self.server_capabilities & CLIENT.SSL:
+            self.write_packet(data_init)
 
             child_gr = greenlet.getcurrent()
             main = child_gr.parent
@@ -218,42 +217,47 @@ class Connection(_Connection):
                 else:
                     child_gr.switch(future.result())
 
-            cert_reqs = ssl.CERT_NONE if self.ca is None else ssl.CERT_REQUIRED
-            future = self.socket.start_tls(None, {
-                "keyfile": self.key,
-                "certfile": self.cert,
-                "ssl_version": ssl.PROTOCOL_TLSv1,
-                "cert_reqs": ssl.CERT_REQUIRED,
-                "ca_certs": cert_reqs,
-            })
+            future = self.socket.start_tls(False, self.ctx, server_hostname=self.host)
             self._loop.add_future(future, finish)
-            self.socket = main.switch()
-            self._rfile = self.socket
+            self._rfile = self.socket = main.switch()
 
-        data = data_init + self.user + b'\0' + \
-            _scramble(self.password.encode('latin1'), self.salt)
+        data = data_init + self.user + b'\0'
 
-        if self.db:
+        authresp = b''
+        if self._auth_plugin_name == 'mysql_native_password':
+            authresp = _scramble(self.password.encode('latin1'), self.salt)
+
+        if self.server_capabilities & CLIENT.PLUGIN_AUTH_LENENC_CLIENT_DATA:
+            data += lenenc_int(len(authresp)) + authresp
+        elif self.server_capabilities & CLIENT.SECURE_CONNECTION:
+            data += struct.pack('B', len(authresp)) + authresp
+        else:  # pragma: no cover - not testing against servers without secure auth (>=5.0)
+            data += authresp + b'\0'
+
+        if self.db and self.server_capabilities & CLIENT.CONNECT_WITH_DB:
             if isinstance(self.db, text_type):
                 self.db = self.db.encode(self.encoding)
-            data += self.db + int2byte(0)
+            data += self.db + b'\0'
 
-        data = pack_int24(len(data)) + int2byte(next_packet) + data
-        next_packet += 2
+        if self.server_capabilities & CLIENT.PLUGIN_AUTH:
+            name = self._auth_plugin_name
+            if isinstance(name, text_type):
+                name = name.encode('ascii')
+            data += name + b'\0'
 
-        if DEBUG:
-            dump_packet(data)
-
-        self._write_bytes(data)
-
+        self.write_packet(data)
         auth_packet = self._read_packet()
 
-        # if old_passwords is enabled the packet will be 1 byte long and
-        # have the octet 254
-
-        if auth_packet.is_eof_packet():
-            # send legacy handshake
-            data = _scramble_323(self.password.encode('latin1'), self.salt) + b'\0'
-            data = pack_int24(len(data)) + int2byte(next_packet) + data
-            self._write_bytes(data)
-            auth_packet = self._read_packet()
+        # if authentication method isn't accepted the first byte
+        # will have the octet 254
+        if auth_packet.is_auth_switch_request():
+            # https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchRequest
+            auth_packet.read_uint8() # 0xfe packet identifier
+            plugin_name = auth_packet.read_string()
+            if self.server_capabilities & CLIENT.PLUGIN_AUTH and plugin_name is not None:
+                auth_packet = self._process_auth(plugin_name, auth_packet)
+            else:
+                # send legacy handshake
+                data = _scramble_323(self.password.encode('latin1'), self.salt) + b'\0'
+                self.write_packet(data)
+                auth_packet = self._read_packet()

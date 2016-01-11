@@ -28,8 +28,8 @@ from .client import Client
 from .cursor import Cursor, DictCursor, SSCursor, SSDictCursor
 from .pool import ConnectionPool
 
-version = "0.1.8"
-version_info = (0, 1, 8)
+version = "0.1.9"
+version_info = (0, 1, 9)
 
 
 def connect(*args, **kwargs):
