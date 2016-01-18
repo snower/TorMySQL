@@ -5,6 +5,7 @@ TorMySQL
     :target: https://travis-ci.org/snower/TorMySQL
 
 Tornado asynchronous MySQL Driver
+PyPI page: https://pypi.python.org/pypi/tormysql
 
 About
 =====
@@ -51,3 +52,8 @@ Examples
 
     ioloop = IOLoop.instance()
     ioloop.run_sync(test)
+
+License
+========
+
+TorMySQL uses the MIT license, see LICENSE file for the details.
