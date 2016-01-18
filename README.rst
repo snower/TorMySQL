@@ -4,14 +4,13 @@ TorMySQL
 .. image:: https://travis-ci.org/snower/TorMySQL.svg
     :target: https://travis-ci.org/snower/TorMySQL
 
-Tornado asynchronous MySQL Driver
+Tornado asynchronous MySQL Driver.
 PyPI page: https://pypi.python.org/pypi/tormysql
 
 About
 =====
 
-tormysql - presents a Tornado Future-based API and greenlet for
-non-blocking access to MySQL.
+tormysql - presents a Tornado Future-based API and greenlet for non-blocking access to MySQL.
 
 Installation
 ============
