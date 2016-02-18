@@ -41,6 +41,14 @@ Examples
     @gen.coroutine
     def test():
         with (yield pool.Connection()) as conn:
+            try:
+                with conn.cursor() as cursor:
+                    yield cursor.execute("INSERT INTO test(id) VALUES(1)")
+            except:
+                yield conn.rollback()
+            else:
+                yield conn.commit()
+
             with conn.cursor() as cursor:
                 yield cursor.execute("SELECT * FROM test")
                 datas = cursor.fetchall()
