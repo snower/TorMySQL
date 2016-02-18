@@ -9,6 +9,7 @@ class TestWarnings(BaseTestCase):
     def test0(self):
         connection = yield self.pool.Connection()
         warnings = yield connection.show_warnings()
+        connection.close()
         self.assertEqual(warnings, (), "No warnings")
 
     @gen_test
