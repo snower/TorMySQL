@@ -101,6 +101,9 @@ class Client(object):
     def __getattr__(self, name):
         return getattr(self._connection, name)
 
+    def __del__(self):
+        self.close()
+
     def __enter__(self):
         return self.cursor()
 

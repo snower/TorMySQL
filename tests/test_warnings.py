@@ -19,5 +19,5 @@ class TestWarnings(BaseTestCase):
             with connection.cursor() as cursor:
                 yield cursor.execute(sql)
 
-        warnings = yield connection.show_warnings()
-        self.assertTrue(name in warnings[0][2])
+            warnings = yield connection.show_warnings()
+            self.assertTrue(name in warnings[0][2])

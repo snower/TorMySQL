@@ -23,10 +23,10 @@ class TestTransactions(BaseTestCase):
             yield cursor.execute("SELECT COUNT(*) FROM test_{name}".format(name=name))
             data = cursor.fetchone()
             yield cursor.close()
-            connection.close()
         finally:
             cursor = connection.cursor()
             yield cursor.execute("DROP TABLE test_{name}".format(name=name))
             yield cursor.close()
+            connection.close()
 
         self.assertEqual(data, (0,), "Transaction not working")
