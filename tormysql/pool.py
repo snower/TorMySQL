@@ -59,8 +59,8 @@ class Connection(Client):
 
 class ConnectionPool(object):
     def __init__(self, *args, **kwargs):
-        self._max_connections = kwargs.pop("max_connections") if "max_connections" in kwargs else 1
-        self._idle_seconds = kwargs.pop("idle_seconds") if "idle_seconds" in kwargs else 0
+        self._max_connections = kwargs.pop("max_connections") if "max_connections" in kwargs else 32
+        self._idle_seconds = kwargs.pop("idle_seconds") if "idle_seconds" in kwargs else 7200
         self._args = args
         self._kwargs = kwargs
         self._connections = deque(maxlen = self._max_connections)
