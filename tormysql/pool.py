@@ -18,6 +18,10 @@ class ConnectionPoolClosedError(Exception):
     pass
 
 
+class ConnectionPoolUsedError(Exception):
+    pass
+
+
 class ConnectionNotFoundError(Exception):
     pass
 
@@ -187,8 +191,11 @@ class ConnectionPool(object):
         if self._closed:
             raise ConnectionPoolClosedError()
 
+        if self._used_connections:
+            raise ConnectionPoolUsedError()
+
         self._closed = True
-        self._close_future = Future()
+        self._close_future = close_future = Future()
 
         while len(self._wait_connections):
             future = self._wait_connections.popleft()
@@ -198,7 +205,7 @@ class ConnectionPool(object):
             connection = self._connections.popleft()
             self._used_connections[id(connection)] = connection
             connection.do_close()
-        return self._close_future
+        return close_future
 
     def check_idle_connections(self):
         next_check_time = time.time() + self._idle_seconds
