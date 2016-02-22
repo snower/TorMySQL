@@ -208,12 +208,17 @@ class ConnectionPool(object):
         return close_future
 
     def check_idle_connections(self):
-        next_check_time = time.time() + self._idle_seconds
+        now = time.time()
+        next_check_time = now + self._idle_seconds
         for connection in tuple(self._connections):
-            if time.time() - connection.idle_time > self._idle_seconds:
+            if now - connection.idle_time > self._idle_seconds:
                 self.close_connection(connection)
             elif connection.idle_time + self._idle_seconds < next_check_time:
                 next_check_time = connection.idle_time + self._idle_seconds
+
+        for connection in self._used_connections.values():
+            if now - connection.used_time > self._idle_seconds:
+                connection.do_close()
 
         if not self._closed and self._connections or self._used_connections:
             IOLoop.current().add_timeout(next_check_time, self.check_idle_connections)
