@@ -35,6 +35,8 @@ class Connection(_Connection):
         self.socket = None
         super(Connection, self).__init__(*args, **kwargs)
 
+        self._loop_connect_timeout = None
+
     def set_close_callback(self, callback):
         self._close_callback = callback
         
@@ -99,13 +101,19 @@ class Connection(_Connection):
             main = child_gr.parent
             assert main is not None, "Execut must be running in child greenlet"
 
+            self._loop_connect_timeout = None
             if self.connect_timeout:
                 def timeout():
+                    self._loop_connect_timeout = None
                     if not self.socket:
                         sock.close((None, IOError("connect timeout"), None))
-                self._loop.call_later(self.connect_timeout, timeout)
+                self._loop_connect_timeout = self._loop.call_later(self.connect_timeout, timeout)
 
             def connected(future):
+                if self._loop_connect_timeout:
+                    self._loop.remove_timeout(self._loop_connect_timeout)
+                    self._loop_connect_timeout = None
+
                 if future._exc_info is not None:
                     child_gr.throw(future.exception())
                 else:
