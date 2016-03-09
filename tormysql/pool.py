@@ -33,6 +33,8 @@ class ConnectionNotUsedError(Exception):
 class ConnectionUsedError(Exception):
     pass
 
+class WaitConnectionTimeoutError(Exception):
+    pass
 
 class Connection(Client):
     def __init__(self, pool, *args, **kwargs):
@@ -61,6 +63,7 @@ class ConnectionPool(object):
     def __init__(self, *args, **kwargs):
         self._max_connections = kwargs.pop("max_connections") if "max_connections" in kwargs else 32
         self._idle_seconds = kwargs.pop("idle_seconds") if "idle_seconds" in kwargs else 7200
+        self._wait_connection_timeout = kwargs.pop("wait_connection_timeout") if "wait_connection_timeout" in kwargs else 3
         self._args = args
         self._kwargs = kwargs
         self._connections = deque(maxlen = self._max_connections)
@@ -81,17 +84,22 @@ class ConnectionPool(object):
         else:
             future.set_exc_info(connection_future.exc_info())
 
-            while self._wait_connections and self._connections:
+            while self._connections:
                 connection = self._connections.pop()
-                self._used_connections[id(connection)] = connection
-                connection.used_time = time.time()
                 if connection.open:
-                    wait_future = self._wait_connections.popleft()
-                    IOLoop.current().add_callback(wait_future.set_result, connection)
+                    if self.continue_next_wait(connection):
+                        self._used_connections[id(connection)] = connection
+                    else:
+                        self._connections.append(connection)
+                        break
 
-            while self._wait_connections and self._connections_count - 1 < self._max_connections:
-                wait_future = self._wait_connections.popleft()
-                IOLoop.current().add_callback(self.init_connection, wait_future)
+            if self._wait_connections and self._connections_count - 1 < self._max_connections:
+                wait_future, create_time = self._wait_connections.popleft()
+                wait_time = time.time() - create_time
+                if wait_time >= self._wait_connection_timeout:
+                    wait_future.set_exception(WaitConnectionTimeoutError("wait connection timeout of %fs" % wait_time))
+                else:
+                    IOLoop.current().add_callback(self.init_connection, wait_future)
 
     def init_connection(self, future):
         connection = Connection(self, *self._args, **self._kwargs)
@@ -107,7 +115,7 @@ class ConnectionPool(object):
 
     def get_connection(self):
         if self._closed:
-            raise ConnectionPoolClosedError()
+            raise ConnectionPoolClosedError("connection pool closed")
 
         future = Future()
         while self._connections:
@@ -121,7 +129,7 @@ class ConnectionPool(object):
         if self._connections_count < self._max_connections:
             self.init_connection(future)
         else:
-            self._wait_connections.append(future)
+            self._wait_connections.append((future, time.time()))
         return future
 
     Connection = get_connection
@@ -136,18 +144,15 @@ class ConnectionPool(object):
             future.set_result(None)
             return future
 
-        if self._wait_connections:
-            wait_future = self._wait_connections.popleft()
-            connection.used_time = time.time()
-            IOLoop.current().add_callback(wait_future.set_result, connection)
-
-            while self._wait_connections and self._connections:
+        if self.continue_next_wait(connection):
+            while self._connections:
                 connection = self._connections.pop()
-                self._used_connections[id(connection)] = connection
-                connection.used_time = time.time()
                 if connection.open:
-                    wait_future = self._wait_connections.popleft()
-                    IOLoop.current().add_callback(wait_future.set_result, connection)
+                    if self.continue_next_wait(connection):
+                        self._used_connections[id(connection)] = connection
+                    else:
+                        self._connections.append(connection)
+                        break
         else:
             try:
                 del self._used_connections[id(connection)]
@@ -156,13 +161,26 @@ class ConnectionPool(object):
             except KeyError:
                 if connection not in self._connections:
                     IOLoop.current().add_callback(connection.do_close)
-                    raise ConnectionNotFoundError()
+                    raise ConnectionNotFoundError("connection not found")
                 else:
-                    raise ConnectionNotUsedError()
+                    raise ConnectionNotUsedError("connection is not used, you maybe close wrong connection")
 
         future = Future()
         future.set_result(None)
         return future
+
+    def continue_next_wait(self, connection):
+        now = time.time()
+        while self._wait_connections:
+            wait_future, create_time = self._wait_connections.popleft()
+            wait_time = now - create_time
+            if wait_time >= self._wait_connection_timeout:
+                wait_future.set_exception(WaitConnectionTimeoutError("wait connection timeout of %fs" % wait_time))
+                continue
+            connection.used_time = now
+            IOLoop.current().add_callback(wait_future.set_result, connection)
+            return True
+        return False
 
     def close_connection(self, connection):
         try:
@@ -170,7 +188,7 @@ class ConnectionPool(object):
             self._used_connections[id(connection)] = connection
             return connection.do_close()
         except ValueError:
-            raise ConnectionUsedError()
+            raise ConnectionUsedError("connection is used, you can not close it")
 
     def connection_close_callback(self, connection):
         try:
@@ -189,17 +207,21 @@ class ConnectionPool(object):
 
     def close(self):
         if self._closed:
-            raise ConnectionPoolClosedError()
+            raise ConnectionPoolClosedError("connection pool closed")
 
         if self._used_connections:
-            raise ConnectionPoolUsedError()
+            raise ConnectionPoolUsedError("connection pool is used, you must wait all query is finish")
 
         self._closed = True
         self._close_future = close_future = Future()
 
         while len(self._wait_connections):
-            future = self._wait_connections.popleft()
-            IOLoop.current().add_callback(future.set_exception, ConnectionPoolClosedError())
+            future, create_time = self._wait_connections.popleft()
+            wait_time = time.time() - create_time
+            if wait_time >= self._wait_connection_timeout:
+                future.set_exception(WaitConnectionTimeoutError("wait connection timeout of %fs" % wait_time))
+            else:
+                IOLoop.current().add_callback(future.set_exception, ConnectionPoolClosedError("connection pool closed"))
 
         while len(self._connections):
             connection = self._connections.popleft()
