@@ -31,6 +31,7 @@ Examples
     pool = tormysql.ConnectionPool(
         max_connections = 20, #max open connections
         idle_seconds = 7200, #conntion idle timeout time, 0 is not timeout
+        wait_connection_timeout = 3, #wait connection timeout
         host = "127.0.0.1",
         user = "root",
         passwd = "TEST",
