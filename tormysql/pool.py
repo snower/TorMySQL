@@ -63,7 +63,7 @@ class ConnectionPool(object):
     def __init__(self, *args, **kwargs):
         self._max_connections = kwargs.pop("max_connections") if "max_connections" in kwargs else 32
         self._idle_seconds = kwargs.pop("idle_seconds") if "idle_seconds" in kwargs else 7200
-        self._wait_connection_timeout = kwargs.pop("wait_connection_timeout") if "wait_connection_timeout" in kwargs else 3
+        self._wait_connection_timeout = kwargs.pop("wait_connection_timeout") if "wait_connection_timeout" in kwargs else 8
         self._args = args
         self._kwargs = kwargs
         self._connections = deque(maxlen = self._max_connections)
