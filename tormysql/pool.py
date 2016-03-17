@@ -63,7 +63,7 @@ class ConnectionPool(object):
     def __init__(self, *args, **kwargs):
         self._max_connections = kwargs.pop("max_connections") if "max_connections" in kwargs else 32
         self._idle_seconds = kwargs.pop("idle_seconds") if "idle_seconds" in kwargs else 7200
-        self._wait_connection_timeout = kwargs.pop("wait_connection_timeout") if "wait_connection_timeout" in kwargs else 3
+        self._wait_connection_timeout = kwargs.pop("wait_connection_timeout") if "wait_connection_timeout" in kwargs else 8
         self._args = args
         self._kwargs = kwargs
         self._connections = deque(maxlen = self._max_connections)
@@ -84,7 +84,7 @@ class ConnectionPool(object):
         else:
             future.set_exc_info(connection_future.exc_info())
 
-            while self._connections:
+            while self._wait_connections and self._connections:
                 connection = self._connections.pop()
                 if connection.open:
                     if self.continue_next_wait(connection):
@@ -97,7 +97,7 @@ class ConnectionPool(object):
                 wait_future, create_time = self._wait_connections.popleft()
                 wait_time = time.time() - create_time
                 if wait_time >= self._wait_connection_timeout:
-                    wait_future.set_exception(WaitConnectionTimeoutError("wait connection timeout of %fs" % wait_time))
+                    IOLoop.current().add_callback(wait_future.set_exception, WaitConnectionTimeoutError("wait connection timeout of %fs" % wait_time))
                 else:
                     IOLoop.current().add_callback(self.init_connection, wait_future)
 
@@ -145,7 +145,7 @@ class ConnectionPool(object):
             return future
 
         if self.continue_next_wait(connection):
-            while self._connections:
+            while self._wait_connections and self._connections:
                 connection = self._connections.pop()
                 if connection.open:
                     if self.continue_next_wait(connection):
@@ -175,7 +175,7 @@ class ConnectionPool(object):
             wait_future, create_time = self._wait_connections.popleft()
             wait_time = now - create_time
             if wait_time >= self._wait_connection_timeout:
-                wait_future.set_exception(WaitConnectionTimeoutError("wait connection timeout of %fs" % wait_time))
+                IOLoop.current().add_callback(wait_future.set_exception, WaitConnectionTimeoutError("wait connection timeout of %fs" % wait_time))
                 continue
             connection.used_time = now
             IOLoop.current().add_callback(wait_future.set_result, connection)
@@ -219,7 +219,7 @@ class ConnectionPool(object):
             future, create_time = self._wait_connections.popleft()
             wait_time = time.time() - create_time
             if wait_time >= self._wait_connection_timeout:
-                future.set_exception(WaitConnectionTimeoutError("wait connection timeout of %fs" % wait_time))
+                IOLoop.current().add_callback(future.set_exception, WaitConnectionTimeoutError("wait connection timeout of %fs" % wait_time))
             else:
                 IOLoop.current().add_callback(future.set_exception, ConnectionPoolClosedError("connection pool closed"))
 
