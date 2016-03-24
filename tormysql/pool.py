@@ -239,10 +239,11 @@ class ConnectionPool(object):
                 next_check_time = connection.idle_time + self._idle_seconds
 
         for connection in self._used_connections.values():
-            if now - connection.used_time > self._idle_seconds:
+            if now - connection.used_time > (self._wait_connection_timeout * 4) ** 2:
                 connection.do_close()
-            elif now - connection.used_time > 180:
-                logging.warning("connection maybe not release, use time %.2fs %s %s", now - connection.used_time, connection, self)
+                logging.error("connection used timeout close, used time %.2fs %s %s", now - connection.used_time, connection, self)
+            elif now - connection.used_time > self._wait_connection_timeout ** 2 * 2:
+                logging.warning("connection maybe not release, used time %.2fs %s %s", now - connection.used_time, connection, self)
 
         if not self._closed and (self._connections or self._used_connections):
             IOLoop.current().add_timeout(min(next_check_time, now + 60), self.check_idle_connections)
