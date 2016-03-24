@@ -110,7 +110,7 @@ class ConnectionPool(object):
         IOLoop.current().add_future(connection_future, lambda connection_future: self.connection_connected_callback(future, connection_future))
 
         if self._idle_seconds > 0 and not self._check_idle_callback:
-            IOLoop.current().add_timeout(time.time() + self._idle_seconds, self.check_idle_connections)
+            IOLoop.current().add_timeout(time.time() + min(self._idle_seconds, 60), self.check_idle_connections)
             self._check_idle_callback = True
 
     def get_connection(self):
@@ -241,8 +241,13 @@ class ConnectionPool(object):
         for connection in self._used_connections.values():
             if now - connection.used_time > self._idle_seconds:
                 connection.do_close()
+            elif now - connection.used_time > 120:
+                logging.warning("connection maybe not release %s %s", connection, self)
 
         if not self._closed and self._connections or self._used_connections:
-            IOLoop.current().add_timeout(next_check_time, self.check_idle_connections)
+            IOLoop.current().add_timeout(min(next_check_time, now + 60), self.check_idle_connections)
         else:
             self._check_idle_callback = False
+
+    def __str__(self):
+        return "%s <%s,%s> %s" % (super(ConnectionPool, self).__str__(), len(self._connections), len(self._used_connections), self._args or self._kwargs)
