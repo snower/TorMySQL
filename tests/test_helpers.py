@@ -37,8 +37,7 @@ class TestHelpersCase(AsyncTestCase):
         sql = "select 1 as test"
         cursor = yield self.pool.execute(sql)
         result = cursor.fetchone()
-        self.assertTrue('test' in result)
-        self.assertEqual(result['test'], 1)
+        self.assertTrue(result == (1,))
 
     @gen_test
     def test_tx(self):
@@ -47,5 +46,4 @@ class TestHelpersCase(AsyncTestCase):
         cursor = yield tx.execute(sql)
         yield tx.commit()
         result = cursor.fetchone()
-        self.assertTrue('test' in result)
-        self.assertEqual(result['test'], 1)
+        self.assertTrue(result == (1,))
