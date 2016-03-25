@@ -97,7 +97,7 @@ class ConnectionPool(object):
                 wait_future, create_time = self._wait_connections.popleft()
                 wait_time = time.time() - create_time
                 if wait_time >= self._wait_connection_timeout:
-                    IOLoop.current().add_callback(wait_future.set_exception, WaitConnectionTimeoutError("wait connection timeout of %fs" % wait_time))
+                    IOLoop.current().add_callback(wait_future.set_exception, WaitConnectionTimeoutError("wait connection timeout, used time %.2fs" % wait_time))
                 else:
                     IOLoop.current().add_callback(self.init_connection, wait_future)
 
@@ -175,7 +175,7 @@ class ConnectionPool(object):
             wait_future, create_time = self._wait_connections.popleft()
             wait_time = now - create_time
             if wait_time >= self._wait_connection_timeout:
-                IOLoop.current().add_callback(wait_future.set_exception, WaitConnectionTimeoutError("wait connection timeout of %fs" % wait_time))
+                IOLoop.current().add_callback(wait_future.set_exception, WaitConnectionTimeoutError("wait connection timeout, used time %.2fs" % wait_time))
                 continue
             connection.used_time = now
             IOLoop.current().add_callback(wait_future.set_result, connection)
@@ -219,7 +219,7 @@ class ConnectionPool(object):
             future, create_time = self._wait_connections.popleft()
             wait_time = time.time() - create_time
             if wait_time >= self._wait_connection_timeout:
-                IOLoop.current().add_callback(future.set_exception, WaitConnectionTimeoutError("wait connection timeout of %fs" % wait_time))
+                IOLoop.current().add_callback(future.set_exception, WaitConnectionTimeoutError("wait connection timeout, used time %.2fs" % wait_time))
             else:
                 IOLoop.current().add_callback(future.set_exception, ConnectionPoolClosedError("connection pool closed"))
 
@@ -231,6 +231,15 @@ class ConnectionPool(object):
 
     def check_idle_connections(self):
         now = time.time()
+
+        while self._wait_connections:
+            wait_future, create_time = self._wait_connections[0]
+            wait_time = now - create_time
+            if wait_time < self._wait_connection_timeout:
+                break
+            self._wait_connections.popleft()
+            IOLoop.current().add_callback(wait_future.set_exception, WaitConnectionTimeoutError("wait connection timeout, used time %.2fs" % wait_time))
+
         next_check_time = now + self._idle_seconds
         for connection in tuple(self._connections):
             if now - connection.idle_time > self._idle_seconds:
