@@ -22,6 +22,9 @@ Installation
 Examples
 ========
 
+example pool
+~~~~~~~
+
 ::
 
     from tornado.ioloop import IOLoop
@@ -61,6 +64,8 @@ Examples
     ioloop = IOLoop.instance()
     ioloop.run_sync(test)
 
+example helpers
+~~~~~~~
 
 ::
 
