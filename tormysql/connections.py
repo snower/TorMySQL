@@ -106,7 +106,7 @@ class Connection(_Connection):
                 def timeout():
                     self._loop_connect_timeout = None
                     if not self.socket:
-                        sock.close((None, IOError("connect timeout"), None))
+                        sock.close((None, IOError("Connect timeout"), None))
                 self._loop_connect_timeout = self._loop.call_later(self.connect_timeout, timeout)
 
             def connected(future):

@@ -25,13 +25,12 @@ class Cursor(object):
             self.close()
 
     def close(self):
-        if self._cursor is None or not self._cursor._result or not self._cursor._result.has_next:
+        if self._cursor.connection is None or not self._cursor._result or not self._cursor._result.has_next:
             self._cursor.close()
             future = Future()
             future.set_result(None)
         else:
             future = async_call_method(self._cursor.close)
-        self._cursor = None
         return future
 
     def nextset(self):
@@ -74,7 +73,7 @@ class Cursor(object):
         "WARING: if cursor not read all data, the connection next query is error"
         del exc_info
         if self._cursor._result and self._cursor._result.has_next:
-            raise CursorNotReadAllDataError("if cursor not read all data, the connection next query is error")
+            raise CursorNotReadAllDataError("If cursor not read all data, the connection next query is error.")
         self.close()
 
 setattr(OriginCursor, "__tormysql_class__", Cursor)
@@ -90,13 +89,11 @@ class SSCursor(Cursor):
     __delegate_class__ = OriginSSCursor
 
     def close(self):
-        if self._cursor is None:
-            self._cursor.close()
+        if self._cursor.connection is None:
             future = Future()
             future.set_result(None)
         else:
             future = async_call_method(self._cursor.close)
-        self._cursor = None
         return future
 
     def read_next(self):
