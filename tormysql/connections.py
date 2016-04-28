@@ -281,14 +281,21 @@ class Connection(_Connection):
             self._rbuffer_size -= num_bytes
             return self._rbuffer.read(num_bytes)
 
-        if num_bytes <= self._rfile._read_buffer_size + self._rbuffer_size:
-            last_buf = b''
-            if self._rbuffer_size > 0:
-                last_buf += self._rbuffer.read()
-            self._rbuffer_size = self._rfile._read_buffer_size + self._rbuffer_size - num_bytes
-            self._rbuffer = StringIO(last_buf + b''.join(self._rfile._read_buffer))
+        if self._rbuffer_size > 0:
+            self._rfile._read_buffer.appendleft(self._rbuffer.read())
+            self._rfile._read_buffer_size += self._rbuffer_size
+            self._rbuffer_size = 0
+
+        if num_bytes <= self._rfile._read_buffer_size:
+            data, data_len = b''.join(self._rfile._read_buffer), self._rfile._read_buffer_size
             self._rfile._read_buffer.clear()
             self._rfile._read_buffer_size = 0
+
+            if data_len == num_bytes:
+                return data
+
+            self._rbuffer_size = data_len - num_bytes
+            self._rbuffer = StringIO(data)
             return self._rbuffer.read(num_bytes)
 
         child_gr = greenlet.getcurrent()
@@ -300,15 +307,14 @@ class Connection(_Connection):
                 return child_gr.throw(err.OperationalError(2006, "MySQL server has gone away (%r)" % (future.exception(),)))
 
             data = future.result()
-            last_buf = b''
-            if self._rbuffer_size > 0:
-                last_buf += self._rbuffer.read()
+            if len(data) == num_bytes:
+                return child_gr.switch(data)
 
-            self._rbuffer_size = self._rbuffer_size + len(data) - num_bytes
-            self._rbuffer = StringIO(last_buf + data)
+            self._rbuffer_size = len(data) - num_bytes
+            self._rbuffer = StringIO(data)
             return child_gr.switch(self._rbuffer.read(num_bytes))
         try:
-            future = self._rfile.read_bytes(num_bytes - self._rbuffer_size)
+            future = self._rfile.read_bytes(num_bytes)
             self._loop.add_future(future, read_callback)
         except (AttributeError, StreamClosedError) as e:
             raise err.OperationalError(2006, "MySQL server has gone away (%r)" % (e,))
