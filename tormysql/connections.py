@@ -71,7 +71,7 @@ class IOStream(BaseIOStream):
                 self._read_buffer.append(chunk)
                 self._read_buffer_size += len(chunk)
             except (socket.error, IOError, OSError) as e:
-                en = errno_from_exception(e)
+                en = e.errno if hasattr(e, 'errno') else e.args[0]
                 if en in _ERRNO_WOULDBLOCK:
                     break
 
@@ -93,7 +93,7 @@ class IOStream(BaseIOStream):
             self.close()
             return
 
-    def read_bytes(self, num_bytes):
+    def read(self, num_bytes):
         assert self._read_future is None, "Already reading"
         if self._closed:
             raise StreamClosedError(real_error=self.error)
@@ -110,6 +110,8 @@ class IOStream(BaseIOStream):
             future.set_result(data)
         return future
 
+    read_bytes = read
+
     def _handle_write(self):
         while self._write_buffer:
             try:
@@ -119,7 +121,7 @@ class IOStream(BaseIOStream):
                     self._write_buffer.appendleft(data[num_bytes:])
                 self._write_buffer_size -= num_bytes
             except (socket.error, IOError, OSError) as e:
-                en = errno_from_exception(e)
+                en = e.errno if hasattr(e, 'errno') else e.args[0]
                 if en in _ERRNO_WOULDBLOCK:
                     self._write_buffer.appendleft(data)
                     break
