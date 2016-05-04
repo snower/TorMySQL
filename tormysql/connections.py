@@ -117,9 +117,10 @@ class IOStream(BaseIOStream):
             try:
                 data = self._write_buffer.popleft()
                 num_bytes = self.socket.send(data)
+                self._write_buffer_size -= num_bytes
                 if num_bytes < len(data):
                     self._write_buffer.appendleft(data[num_bytes:])
-                self._write_buffer_size -= num_bytes
+                    return
             except (socket.error, IOError, OSError) as e:
                 en = e.errno if hasattr(e, 'errno') else e.args[0]
                 if en in _ERRNO_WOULDBLOCK:
