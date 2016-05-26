@@ -154,13 +154,13 @@ class IOStream(BaseIOStream):
 
 class Connection(_Connection):
     def __init__(self, *args, **kwargs):
+        kwargs['defer_connect'] = True
+        super(Connection, self).__init__(*args, **kwargs)
+
         self._close_callback = None
         self._rbuffer = StringIO(b'')
         self._rbuffer_size = 0
         self._loop = None
-        self.socket = None
-        super(Connection, self).__init__(*args, **kwargs)
-
         self._loop_connect_timeout = None
 
     def set_close_callback(self, callback):
@@ -172,9 +172,9 @@ class Connection(_Connection):
             self._close_callback = None
             cb()
                 
-        if self.socket:
-            sock = self.socket
-            self.socket = None
+        if self._sock:
+            sock = self._sock
+            self._sock = None
             self._rfile = None
             sock.set_close_callback(None)
 
@@ -184,7 +184,7 @@ class Connection(_Connection):
             self._close_callback = None
             cb()
 
-        if self.socket is None:
+        if self._sock is None:
             raise err.Error("Already closed")
 
         send_data = struct.pack('<iB', 1, COMMAND.COM_QUIT)
@@ -193,18 +193,18 @@ class Connection(_Connection):
         except Exception:
             pass
         finally:
-            sock = self.socket
-            self.socket = None
+            sock = self._sock
+            self._sock = None
             self._rfile = None
             sock.set_close_callback(None)
             sock.close()
 
     @property
     def open(self):
-        return self.socket is not None and not self.socket.closed()
+        return self._sock is not None and not self._sock.closed()
 
     def __del__(self):
-        if self.socket:
+        if self._sock:
             self.close()
 
     def connect(self):
@@ -231,7 +231,7 @@ class Connection(_Connection):
             if self.connect_timeout:
                 def timeout():
                     self._loop_connect_timeout = None
-                    if not self.socket:
+                    if not self._sock:
                         sock.close((None, IOError("Connect timeout"), None))
                 self._loop_connect_timeout = self._loop.call_later(self.connect_timeout, timeout)
 
@@ -243,14 +243,14 @@ class Connection(_Connection):
                 if future._exc_info is not None:
                     child_gr.throw(future.exception())
                 else:
-                    self.socket = sock
+                    self._sock = sock
                     child_gr.switch()
 
             future = sock.connect(address)
             self._loop.add_future(future, connected)
             main.switch()
 
-            self._rfile = self.socket
+            self._rfile = self._sock
             self._next_seq_id = 0
 
             self._get_server_information()
@@ -268,10 +268,10 @@ class Connection(_Connection):
             if self.autocommit_mode is not None:
                 self.autocommit(self.autocommit_mode)
         except Exception as e:
-            if self.socket:
+            if self._sock:
                 self._rfile = None
-                self.socket.close()
-                self.socket = None
+                self._sock.close()
+                self._sock = None
             exc = err.OperationalError(
                 2003, "Can't connect to MySQL server on %s (%r)" % (self.unix_socket or ("%s:%s" % (self.host, self.port)), e))
             # Keep original exception and traceback to investigate error.
@@ -325,7 +325,7 @@ class Connection(_Connection):
 
     def _write_bytes(self, data):
         try:
-            self.socket.write(data)
+            self._sock.write(data)
         except (AttributeError, StreamClosedError) as e:
             raise err.OperationalError(2006, "MySQL server has gone away (%r)" % (e,))
 
@@ -355,9 +355,9 @@ class Connection(_Connection):
                 else:
                     child_gr.switch(future.result())
 
-            future = self.socket.start_tls(False, self.ctx, server_hostname=self.host)
+            future = self._sock.start_tls(False, self.ctx, server_hostname=self.host)
             self._loop.add_future(future, finish)
-            self._rfile = self.socket = main.switch()
+            self._rfile = self._sock = main.switch()
 
         data = data_init + self.user + b'\0'
 
@@ -390,7 +390,7 @@ class Connection(_Connection):
         # will have the octet 254
         if auth_packet.is_auth_switch_request():
             # https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchRequest
-            auth_packet.read_uint8() # 0xfe packet identifier
+            auth_packet.read_uint8()  # 0xfe packet identifier
             plugin_name = auth_packet.read_string()
             if self.server_capabilities & CLIENT.PLUGIN_AUTH and plugin_name is not None:
                 auth_packet = self._process_auth(plugin_name, auth_packet)
