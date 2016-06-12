@@ -40,9 +40,8 @@ class Client(object):
     def connection_close_callback(self):
         self._closed = True
         if self._close_callback and callable(self._close_callback):
-            cb = self._close_callback
-            self._close_callback = None
-            cb(self)
+            close_callback, self._close_callback = self._close_callback, None
+            close_callback(self)
 
     def set_close_callback(self, callback):
         self._close_callback = callback

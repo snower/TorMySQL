@@ -201,8 +201,7 @@ class ConnectionPool(object):
             except ValueError:
                 logging.warning("Close unknown Connection %s.", connection)
         if self._close_future and not self._used_connections and not self._connections:
-            close_future = self._close_future
-            IOLoop.current().add_callback(close_future.set_result, None)
+            IOLoop.current().add_callback(self._close_future.set_result, None)
             self._close_future = None
 
     def close(self):

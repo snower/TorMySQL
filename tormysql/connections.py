@@ -15,7 +15,7 @@ from pymysql.charset import charset_by_name
 from pymysql.constants import COMMAND, CLIENT
 from pymysql.connections import Connection as _Connection, lenenc_int, text_type
 from pymysql.connections import _scramble, _scramble_323
-from tornado.concurrent import TracebackFuture
+from tornado.concurrent import Future
 from tornado.iostream import IOStream as BaseIOStream, StreamClosedError, errno_from_exception, _ERRNO_WOULDBLOCK
 from tornado.ioloop import IOLoop
 
@@ -98,7 +98,7 @@ class IOStream(BaseIOStream):
         if self._closed:
             raise StreamClosedError(real_error=self.error)
 
-        future = self._read_future = TracebackFuture()
+        future = self._read_future = Future()
         self._read_bytes = num_bytes
         self._read_partial = False
         if self._read_buffer_size >= self._read_bytes:
@@ -168,22 +168,15 @@ class Connection(_Connection):
         
     def stream_close_callback(self):
         if self._close_callback and callable(self._close_callback):
-            cb = self._close_callback
-            self._close_callback = None
-            cb()
+            close_callback, self._close_callback = self._close_callback, None
+            close_callback()
                 
         if self._sock:
-            sock = self._sock
+            self._sock.set_close_callback(None)
             self._sock = None
             self._rfile = None
-            sock.set_close_callback(None)
 
     def close(self):
-        if self._close_callback and callable(self._close_callback):
-            cb = self._close_callback
-            self._close_callback = None
-            cb()
-
         if self._sock is None:
             raise err.Error("Already closed")
 
@@ -193,15 +186,11 @@ class Connection(_Connection):
         except Exception:
             pass
         finally:
-            sock = self._sock
-            self._sock = None
-            self._rfile = None
-            sock.set_close_callback(None)
-            sock.close()
+            self._sock.close()
 
     @property
     def open(self):
-        return self._sock is not None and not self._sock.closed()
+        return self._sock and not self._sock.closed()
 
     def __del__(self):
         if self._sock:
