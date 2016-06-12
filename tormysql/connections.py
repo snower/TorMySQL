@@ -154,7 +154,6 @@ class IOStream(BaseIOStream):
 
 class Connection(_Connection):
     def __init__(self, *args, **kwargs):
-        kwargs['defer_connect'] = True
         super(Connection, self).__init__(*args, **kwargs)
 
         self._close_callback = None
