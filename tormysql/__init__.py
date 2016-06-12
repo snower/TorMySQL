@@ -31,8 +31,8 @@ from .cursor import CursorNotReadAllDataError, CursorNotIterError
 from .pool import ConnectionPoolClosedError, ConnectionPoolUsedError, ConnectionNotFoundError, ConnectionNotUsedError, ConnectionUsedError, WaitConnectionTimeoutError
 from . import helpers
 
-version = "0.2.4"
-version_info = (0, 2, 4)
+version = "0.2.5"
+version_info = (0, 2, 5)
 
 
 def connect(*args, **kwargs):
