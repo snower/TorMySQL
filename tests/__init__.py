@@ -28,4 +28,5 @@ class BaseTestCase(AsyncTestCase):
 
     def tearDown(self):
         super(BaseTestCase, self).tearDown()
-        self.pool.close()
+        if not self.pool.closed:
+            self.pool.close()

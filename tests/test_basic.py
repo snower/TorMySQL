@@ -15,3 +15,4 @@ class TestBasic(BaseTestCase):
         yield cursor.close()
         connection.close()
         assert datas
+        yield self.pool.close(5)
