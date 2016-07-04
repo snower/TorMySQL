@@ -103,4 +103,4 @@ class TestThroughProxy(BaseTestCase):
         else:
             raise AssertionError("Unexpected normal situation")
         finally:
-            pool.close(10)
+            yield pool.close(10)
