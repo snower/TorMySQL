@@ -204,15 +204,19 @@ class ConnectionPool(object):
             IOLoop.current().add_callback(self._close_future.set_result, None)
             self._close_future = None
 
-    def close(self):
+    def close(self, timeout = None):
         if self._closed:
             raise ConnectionPoolClosedError("Connection pool closed.")
 
-        if self._used_connections:
-            raise ConnectionPoolUsedError("Connection pool is used, you must wait all query is finish.")
-
         self._closed = True
         self._close_future = close_future = Future()
+
+        if self._used_connections:
+            if timeout:
+                def on_timeout():
+                    if self._closed and self._close_future and not self._close_future.done():
+                        self._close_future.set_exception(ConnectionPoolUsedError("Connection pool is used, you must wait all query is finish."))
+                IOLoop.current().add_timeout(time.time() + timeout)
 
         while len(self._wait_connections):
             future, create_time = self._wait_connections.popleft()
