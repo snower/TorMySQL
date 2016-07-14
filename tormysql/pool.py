@@ -55,6 +55,12 @@ class Connection(Client):
         del exc_info
         self.close()
 
+    def __del__(self):
+        try:
+            self.close()
+        except ConnectionNotUsedError:
+            pass
+
     def do_close(self):
         return super(Connection, self).close()
 
@@ -264,4 +270,4 @@ class ConnectionPool(object):
             self._check_idle_callback = False
 
     def __str__(self):
-        return "%s <%s,%s> %s" % (super(ConnectionPool, self).__str__(), len(self._connections), len(self._used_connections), self._args or self._kwargs)
+        return "%s <%s,%s>" % (super(ConnectionPool, self).__str__(), len(self._connections), len(self._used_connections))

@@ -111,4 +111,4 @@ class Client(object):
         self.close()
 
     def __str__(self):
-        return "%s %s" % (super(Client, self).__str__(), self._args or self._kwargs)
+        return str(self._connection)

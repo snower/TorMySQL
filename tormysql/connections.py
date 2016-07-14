@@ -387,3 +387,6 @@ class Connection(_Connection):
                 data = _scramble_323(self.password.encode('latin1'), self.salt) + b'\0'
                 self.write_packet(data)
                 auth_packet = self._read_packet()
+
+    def __str__(self):
+        return "%s %s" % (super(Connection, self).__str__(), {"host": self.host or self.unix_socket, "user": self.user, "database": self.db, "port": self.port})
