@@ -46,7 +46,7 @@ class Cursor(object):
         return async_call_method(self._cursor.executemany, query, args)
 
     def callproc(self, procname, args=()):
-        return async_call_method(self._cursor.procname, procname, args)
+        return async_call_method(self._cursor.callproc, procname, args)
 
     def fetchone(self):
         return self._cursor.fetchone()
