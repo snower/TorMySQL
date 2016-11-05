@@ -136,7 +136,7 @@ class IOStream(BaseIOStream):
                 self.io_loop.update_handler(self.fileno(), self._state)
 
     def write(self, data):
-        assert isinstance(data, bytes)
+        assert isinstance(data, (bytes, bytearray))
         if self._closed:
             raise StreamClosedError(real_error=self.error)
 
