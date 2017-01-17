@@ -1,16 +1,17 @@
 TorMySQL
 ========
 
-.. image:: https://travis-ci.org/snower/TorMySQL.svg
-    :target: https://travis-ci.org/snower/TorMySQL
+|Build Status|
 
 Tornado asynchronous MySQL Driver.
+
 PyPI page: https://pypi.python.org/pypi/tormysql
 
 About
 =====
 
-tormysql - presents a Tornado Future-based API and greenlet for non-blocking access to MySQL.
+tormysql - presents a Tornado Future-based API and greenlet for
+non-blocking access to MySQL.
 
 Installation
 ============
@@ -23,7 +24,7 @@ Examples
 ========
 
 example pool
-~~~~~~~
+------------
 
 ::
 
@@ -58,14 +59,14 @@ example pool
                 datas = cursor.fetchall()
 
         print datas
-        
+
         yield pool.close()
 
     ioloop = IOLoop.instance()
     ioloop.run_sync(test)
 
 example helpers
-~~~~~~~
+---------------
 
 ::
 
@@ -105,6 +106,9 @@ example helpers
     ioloop.run_sync(test)
 
 License
-========
+=======
 
 TorMySQL uses the MIT license, see LICENSE file for the details.
+
+.. |Build Status| image:: https://travis-ci.org/snower/TorMySQL.svg?branch=master
+   :target: https://travis-ci.org/snower/TorMySQL
