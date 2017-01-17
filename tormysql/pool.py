@@ -76,6 +76,7 @@ class ConnectionPool(object):
         self._used_connections = {}
         self._connections_count = 0
         self._wait_connections = deque()
+        self._wait_connection_timeout_futures = deque()
         self._closed = False
         self._close_future = None
         self._check_idle_callback = False
@@ -181,12 +182,23 @@ class ConnectionPool(object):
             wait_future, create_time = self._wait_connections.popleft()
             wait_time = now - create_time
             if wait_time >= self._wait_connection_timeout:
-                IOLoop.current().add_callback(wait_future.set_exception, WaitConnectionTimeoutError("Wait connection timeout, used time %.2fs." % wait_time))
+                self._wait_connection_timeout_futures.append((wait_future, wait_time))
                 continue
             connection.used_time = now
             IOLoop.current().add_callback(wait_future.set_result, connection)
+            if self._wait_connection_timeout_futures:
+                IOLoop.current().add_callback(self.do_wait_future_exception_timeout)
             return True
+
+        if self._wait_connection_timeout_futures:
+            IOLoop.current().add_callback(self.do_wait_future_exception_timeout)
         return False
+
+    def do_wait_future_exception_timeout(self):
+        ioloop = IOLoop.current()
+        while self._wait_connection_timeout_futures:
+            wait_future, wait_time = self._wait_connection_timeout_futures.popleft()
+            ioloop.add_callback(wait_future.set_exception, WaitConnectionTimeoutError("Wait connection timeout, used time %.2fs." % wait_time))
 
     def close_connection(self, connection):
         try:
