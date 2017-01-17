@@ -1,10 +1,10 @@
 language: python
 python:
-  - "2.6"
   - "2.7"
   - "3.3"
   - "3.4"
   - "3.5"
+  - "3.6"
   - "pypy"
 env:
   - MYSQL_POOL=20 MYSQL_HOST=127.0.0.1 MYSQL_USER=travis MYSQL_PASSWD='' MYSQL_DB=test MYSQL_CHARSET=utf8
