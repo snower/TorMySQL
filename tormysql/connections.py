@@ -188,7 +188,10 @@ class Connection(_Connection):
         except Exception:
             pass
         finally:
-            self._sock.close()
+            sock = self._sock
+            self._sock = None
+            self._rfile = None
+            sock.close()
 
     @property
     def open(self):
