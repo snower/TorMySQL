@@ -11,7 +11,7 @@ setup(
     packages=['tormysql'],
     install_requires=[
         'tornado>=4.1',
-        'PyMySQL>=0.7.3',
+        'PyMySQL>=0.7.10',
         'greenlet>=0.4.2',
     ],
     author=['snower', 'mosquito'],

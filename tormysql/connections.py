@@ -12,7 +12,7 @@ import traceback
 import errno
 from pymysql import err
 from pymysql.charset import charset_by_name
-from pymysql.constants import COMMAND, CLIENT
+from pymysql.constants import COMMAND, CLIENT, CR
 from pymysql.connections import Connection as _Connection, lenenc_int, text_type
 from pymysql.connections import _scramble, _scramble_323
 from tornado.concurrent import Future
@@ -176,8 +176,11 @@ class Connection(_Connection):
             self._rfile = None
 
     def close(self):
-        if self._sock is None:
+        if self._closed:
             raise err.Error("Already closed")
+        self._closed = True
+        if self._sock is None:
+            return
 
         send_data = struct.pack('<iB', 1, COMMAND.COM_QUIT)
         try:
@@ -191,11 +194,19 @@ class Connection(_Connection):
     def open(self):
         return self._sock and not self._sock.closed()
 
-    def __del__(self):
+    def _force_close(self):
         if self._sock:
-            self.close()
+            try:
+                self._sock.close()
+            except:
+                pass
+        self._sock = None
+        self._rfile = None
+
+    __del__ = _force_close
 
     def connect(self):
+        self._closed = False
         self._loop = IOLoop.current()
         try:
             if self.unix_socket and self.host in ('localhost', '127.0.0.1'):
@@ -204,6 +215,8 @@ class Connection(_Connection):
                 address = self.unix_socket
             else:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+                if self.bind_address is not None:
+                    sock.bind((self.bind_address, 0))
                 self.host_info = "socket %s:%d" % (self.host, self.port)
                 address = (self.host, self.port)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
@@ -295,7 +308,10 @@ class Connection(_Connection):
 
         def read_callback(future):
             if future._exc_info is not None:
-                return child_gr.throw(err.OperationalError(2006, "MySQL server has gone away (%r)" % (future.exception(),)))
+                self._force_close()
+                return child_gr.throw(err.OperationalError(
+                    CR.CR_SERVER_LOST,
+                    "Lost connection to MySQL server during query (%s)" % (future.exception(),)))
 
             data = future.result()
             if len(data) == num_bytes:
@@ -308,14 +324,20 @@ class Connection(_Connection):
             future = self._rfile.read_bytes(num_bytes)
             self._loop.add_future(future, read_callback)
         except (AttributeError, StreamClosedError) as e:
-            raise err.OperationalError(2006, "MySQL server has gone away (%r)" % (e,))
+            self._force_close()
+            raise err.OperationalError(
+                CR.CR_SERVER_LOST,
+                "Lost connection to MySQL server during query (%s)" % (e,))
         return main.switch()
 
     def _write_bytes(self, data):
         try:
             self._sock.write(data)
         except (AttributeError, StreamClosedError) as e:
-            raise err.OperationalError(2006, "MySQL server has gone away (%r)" % (e,))
+            self._force_close()
+            raise err.OperationalError(
+                CR.CR_SERVER_GONE_ERROR,
+                "MySQL server has gone away (%r)" % (e,))
 
     def _request_authentication(self):
         if int(self.server_version.split('.', 1)[0]) >= 5:
