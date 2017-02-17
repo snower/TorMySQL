@@ -7,12 +7,12 @@ MySQL asynchronous client pool.
 '''
 
 import time
-import logging
 from collections import deque
 from tornado.concurrent import Future
 from tornado.ioloop import IOLoop
 from pymysql._compat import text_type
 from .client import Client
+from . import log
 
 
 class ConnectionPoolClosedError(Exception):
@@ -250,7 +250,7 @@ class ConnectionPool(object):
                 self._connections.remove(connection)
                 self._connections_count -= 1
             except ValueError:
-                logging.warning("Close unknown Connection %s.", connection)
+                log.get_log().warning("Close unknown Connection %s.", connection)
         if self._close_future and not self._used_connections and not self._connections:
             IOLoop.current().add_callback(self._close_future.set_result, None)
             self._close_future = None
@@ -299,14 +299,16 @@ class ConnectionPool(object):
             if now - connection.used_time > (self._wait_connection_timeout * 4) ** 2:
                 connection.do_close()
                 if self._debug_connection_used:
-                    logging.error("Connection used timeout close, used time %.2fs %s %s.\n%s", now - connection.used_time, connection, self, connection.get_last_query_sql())
+                    log.get_log().error("Connection used timeout close, used time %.2fs %s %s.\n%s", now - connection.used_time, connection, self, connection.get_last_query_sql())
                 else:
-                    logging.error("Connection used timeout close, used time %.2fs %s %s.", now - connection.used_time, connection, self)
+                    log.get_log().error("Connection used timeout close, used time %.2fs %s %s.", now - connection.used_time, connection, self)
             elif now - connection.used_time > self._wait_connection_timeout ** 2 * 2:
                 if self._debug_connection_used:
-                    logging.warning("Connection maybe not release, used time %.2fs %s %s.\n%s", now - connection.used_time, connection, self, connection.get_last_query_sql())
+                    log.get_log().warning("Connection maybe not release, used time %.2fs %s %s.\n%s", now - connection.used_time, connection, self, connection.get_last_query_sql())
                 else:
-                    logging.warning("Connection maybe not release, used time %.2fs %s %s.", now - connection.used_time, connection, self)
+                    log.get_log().warning("Connection maybe not release, used time %.2fs %s %s.", now - connection.used_time, connection, self)
+            elif self._debug_connection_used:
+                log.get_log().warning("Connection used time %.2fs %s %s.\n%s", now - connection.used_time, connection, self, connection.get_last_query_sql())
 
         next_check_time = now + self._idle_seconds
         for connection in tuple(self._connections):

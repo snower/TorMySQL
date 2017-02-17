@@ -29,6 +29,7 @@ from .cursor import Cursor, DictCursor, SSCursor, SSDictCursor
 from .pool import ConnectionPool
 from .cursor import CursorNotReadAllDataError, CursorNotIterError
 from .pool import ConnectionPoolClosedError, ConnectionPoolUsedError, ConnectionNotFoundError, ConnectionNotUsedError, ConnectionUsedError, WaitConnectionTimeoutError
+from .log import set_log
 from . import helpers
 
 version = "0.3.2"

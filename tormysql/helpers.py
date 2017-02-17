@@ -2,9 +2,9 @@
 # 16/3/25
 # create by: snower
 
-import logging
 from tornado import gen
 from .pool import ConnectionPool as BaseConnectionPool
+from . import log
 
 class TransactionClosedError(Exception):
     pass
@@ -54,7 +54,7 @@ class Transaction(object):
 
     def __del__(self):
         if self._connection:
-            logging.warning("Transaction has not committed or rollbacked %s.", self._connection)
+            log.get_log().warning("Transaction has not committed or rollbacked %s.", self._connection)
             self._connection.do_close()
             self._connection = None
 
