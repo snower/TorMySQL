@@ -2,7 +2,8 @@
 # 14-8-8
 # create by: snower
 
-from __future__ import absolute_import, division, print_function, with_statement
+from __future__ import absolute_import, division
+from __future__ import print_function, with_statement
 
 import greenlet
 import socket
@@ -10,17 +11,20 @@ import sys
 import struct
 import traceback
 import errno
+
 from pymysql import err
 from pymysql.charset import charset_by_name
 from pymysql.constants import COMMAND, CLIENT, CR
-from pymysql.connections import Connection as _Connection, lenenc_int, text_type
+from pymysql.connections import Connection as _Connection
+from pymysql.connections import lenenc_int, text_type
 from pymysql.connections import _scramble, _scramble_323
 from tornado.concurrent import Future
-from tornado.iostream import IOStream as BaseIOStream, StreamClosedError, errno_from_exception, _ERRNO_WOULDBLOCK
+from tornado.iostream import IOStream as BaseIOStream
+from tornado.iostream import StreamClosedError, _ERRNO_WOULDBLOCK
 from tornado.ioloop import IOLoop
 
 
-if sys.version_info[0] >=3:
+if sys.version_info[0] >= 3:
     import io
     StringIO = io.BytesIO
 else:
@@ -29,6 +33,7 @@ else:
 
 
 class IOStream(BaseIOStream):
+
     def _handle_events(self, fd, events):
         if self._closed:
             return
@@ -81,7 +86,8 @@ class IOStream(BaseIOStream):
                 self.close(exc_info=True)
                 return
 
-        if self._read_future is not None and self._read_buffer_size >= self._read_bytes:
+        if self._read_future is not None and \
+           self._read_buffer_size >= self._read_bytes:
             future, self._read_future = self._read_future, None
             data = b"".join(self._read_buffer)
             self._read_buffer.clear()
@@ -153,6 +159,7 @@ class IOStream(BaseIOStream):
 
 
 class Connection(_Connection):
+
     def __init__(self, *args, **kwargs):
         super(Connection, self).__init__(*args, **kwargs)
 
@@ -164,12 +171,12 @@ class Connection(_Connection):
 
     def set_close_callback(self, callback):
         self._close_callback = callback
-        
+
     def stream_close_callback(self):
         if self._close_callback and callable(self._close_callback):
             close_callback, self._close_callback = self._close_callback, None
             close_callback()
-                
+
         if self._sock:
             self._sock.set_close_callback(None)
             self._sock = None
@@ -237,7 +244,8 @@ class Connection(_Connection):
                     self._loop_connect_timeout = None
                     if not self._sock:
                         sock.close((None, IOError("Connect timeout"), None))
-                self._loop_connect_timeout = self._loop.call_later(self.connect_timeout, timeout)
+                self._loop_connect_timeout = self._loop.call_later(
+                    self.connect_timeout, timeout)
 
             def connected(future):
                 if self._loop_connect_timeout:
@@ -294,7 +302,8 @@ class Connection(_Connection):
             self._rbuffer_size = 0
 
         if num_bytes <= self._rfile._read_buffer_size:
-            data, data_len = b''.join(self._rfile._read_buffer), self._rfile._read_buffer_size
+            data, data_len = b''.join(
+                self._rfile._read_buffer), self._rfile._read_buffer_size
             self._rfile._read_buffer.clear()
             self._rfile._read_buffer_size = 0
 
@@ -353,7 +362,8 @@ class Connection(_Connection):
         if isinstance(self.user, text_type):
             self.user = self.user.encode(self.encoding)
 
-        data_init = struct.pack('<iIB23s', self.client_flag, 1, charset_id, b'')
+        data_init = struct.pack(
+            '<iIB23s', self.client_flag, 1, charset_id, b'')
 
         if self.ssl and self.server_capabilities & CLIENT.SSL:
             self.write_packet(data_init)
@@ -368,7 +378,8 @@ class Connection(_Connection):
                 else:
                     child_gr.switch(future.result())
 
-            future = self._sock.start_tls(False, self.ctx, server_hostname=self.host)
+            future = self._sock.start_tls(
+                False, self.ctx, server_hostname=self.host)
             self._loop.add_future(future, finish)
             self._rfile = self._sock = main.switch()
 
@@ -409,7 +420,8 @@ class Connection(_Connection):
                 auth_packet = self._process_auth(plugin_name, auth_packet)
             else:
                 # send legacy handshake
-                data = _scramble_323(self.password.encode('latin1'), self.salt) + b'\0'
+                data = _scramble_323(self.password.encode(
+                    'latin1'), self.salt) + b'\0'
                 self.write_packet(data)
                 auth_packet = self._read_packet()
 
