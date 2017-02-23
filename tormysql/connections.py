@@ -285,7 +285,8 @@ class Connection(_Connection):
                 self._sock.close()
                 self._sock = None
             exc = err.OperationalError(
-                2003, "Can't connect to MySQL server on %s (%r)" % (self.unix_socket or ("%s:%s" % (self.host, self.port)), e))
+                2003, "Can't connect to MySQL server on %s (%r)" % (
+                    self.unix_socket or ("%s:%s" % (self.host, self.port)), e))
             # Keep original exception and traceback to investigate error.
             exc.original_exception = e
             exc.traceback = traceback.format_exc()
@@ -323,7 +324,8 @@ class Connection(_Connection):
                 self._force_close()
                 return child_gr.throw(err.OperationalError(
                     CR.CR_SERVER_LOST,
-                    "Lost connection to MySQL server during query (%s)" % (future.exception(),)))
+                    "Lost connection to MySQL server during query (%s)" % (
+                        future.exception(),)))
 
             data = future.result()
             if len(data) == num_bytes:
@@ -393,7 +395,9 @@ class Connection(_Connection):
             data += lenenc_int(len(authresp)) + authresp
         elif self.server_capabilities & CLIENT.SECURE_CONNECTION:
             data += struct.pack('B', len(authresp)) + authresp
-        else:  # pragma: no cover - not testing against servers without secure auth (>=5.0)
+        else:
+            # pragma: no cover -
+            #         not testing against servers without secure auth (>=5.0)
             data += authresp + b'\0'
 
         if self.db and self.server_capabilities & CLIENT.CONNECT_WITH_DB:
@@ -416,7 +420,8 @@ class Connection(_Connection):
             # https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchRequest
             auth_packet.read_uint8()  # 0xfe packet identifier
             plugin_name = auth_packet.read_string()
-            if self.server_capabilities & CLIENT.PLUGIN_AUTH and plugin_name is not None:
+            if self.server_capabilities & CLIENT.PLUGIN_AUTH \
+               and plugin_name is not None:
                 auth_packet = self._process_auth(plugin_name, auth_packet)
             else:
                 # send legacy handshake
@@ -426,4 +431,12 @@ class Connection(_Connection):
                 auth_packet = self._read_packet()
 
     def __str__(self):
-        return "%s %s" % (super(Connection, self).__str__(), {"host": self.host or self.unix_socket, "user": self.user, "database": self.db, "port": self.port})
+        return "%s %s" % (
+            super(Connection, self).__str__(),
+            {
+                "host": self.host or self.unix_socket,
+                "user": self.user,
+                "database": self.db,
+                "port": self.port
+            }
+        )
