@@ -58,6 +58,8 @@ class IOStream(BaseIOStream):
 
         if not self.closed():
             self._state = self.io_loop.ERROR | self.io_loop.READ
+            if self._write_buffer:
+                self._state = self._state | self.io_loop.WRITE
             self.io_loop.update_handler(self.fileno(), self._state)
 
     def _handle_read(self):
