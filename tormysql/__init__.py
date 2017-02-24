@@ -32,6 +32,7 @@ from .pool import ConnectionPoolClosedError, ConnectionPoolUsedError, Connection
 from .log import set_log
 from . import helpers
 
+
 version = "0.3.3"
 version_info = (0, 3, 3)
 

@@ -8,11 +8,14 @@ from pymysql.cursors import (
     SSCursor as OriginSSCursor, SSDictCursor as OriginSSDictCursor)
 from .util import async_call_method
 
+
 class CursorNotReadAllDataError(Exception):
     pass
 
+
 class CursorNotIterError(Exception):
     pass
+
 
 class Cursor(object):
     __delegate_class__ = OriginCursor

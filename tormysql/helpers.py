@@ -6,8 +6,10 @@ from tornado import gen
 from .pool import ConnectionPool as BaseConnectionPool
 from . import log
 
+
 class TransactionClosedError(Exception):
     pass
+
 
 class Transaction(object):
     def __init__(self, pool, connection):
@@ -57,6 +59,7 @@ class Transaction(object):
             log.get_log().warning("Transaction has not committed or rollbacked %s.", self._connection)
             self._connection.do_close()
             self._connection = None
+
 
 class ConnectionPool(BaseConnectionPool):
     def __init__(self, *args, **kwargs):

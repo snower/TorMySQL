@@ -20,7 +20,7 @@ from tornado.iostream import IOStream as BaseIOStream, StreamClosedError, errno_
 from tornado.ioloop import IOLoop
 
 
-if sys.version_info[0] >=3:
+if sys.version_info[0] >= 3:
     import io
     StringIO = io.BytesIO
 else:
@@ -279,7 +279,8 @@ class Connection(_Connection):
                 self._sock.close()
                 self._sock = None
             exc = err.OperationalError(
-                2003, "Can't connect to MySQL server on %s (%r)" % (self.unix_socket or ("%s:%s" % (self.host, self.port)), e))
+                2003, "Can't connect to MySQL server on %s (%r)" % (
+                self.unix_socket or ("%s:%s" % (self.host, self.port)), e))
             # Keep original exception and traceback to investigate error.
             exc.original_exception = e
             exc.traceback = traceback.format_exc()
@@ -416,4 +417,6 @@ class Connection(_Connection):
                 auth_packet = self._read_packet()
 
     def __str__(self):
-        return "%s %s" % (super(Connection, self).__str__(), {"host": self.host or self.unix_socket, "user": self.user, "database": self.db, "port": self.port})
+        return "%s %s" % (super(Connection, self).__str__(),
+                          {"host": self.host or self.unix_socket, "user": self.user, "database": self.db,
+                           "port": self.port})

@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 # 14-8-8
 # create by: snower
+
 import sys
 import greenlet
 from tornado.ioloop import IOLoop
 from tornado.concurrent import Future
+
 
 def async_call_method(fun, *args, **kwargs):
     future = Future()
