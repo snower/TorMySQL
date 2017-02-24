@@ -2,8 +2,7 @@
 # 14-8-8
 # create by: snower
 
-from __future__ import absolute_import, division
-from __future__ import print_function, with_statement
+from __future__ import absolute_import, division, print_function, with_statement
 
 import greenlet
 import socket
@@ -11,20 +10,17 @@ import sys
 import struct
 import traceback
 import errno
-
 from pymysql import err
 from pymysql.charset import charset_by_name
 from pymysql.constants import COMMAND, CLIENT, CR
-from pymysql.connections import Connection as _Connection
-from pymysql.connections import lenenc_int, text_type
+from pymysql.connections import Connection as _Connection, lenenc_int, text_type
 from pymysql.connections import _scramble, _scramble_323
 from tornado.concurrent import Future
-from tornado.iostream import IOStream as BaseIOStream
-from tornado.iostream import StreamClosedError, _ERRNO_WOULDBLOCK
+from tornado.iostream import IOStream as BaseIOStream, StreamClosedError, errno_from_exception, _ERRNO_WOULDBLOCK
 from tornado.ioloop import IOLoop
 
 
-if sys.version_info[0] >= 3:
+if sys.version_info[0] >=3:
     import io
     StringIO = io.BytesIO
 else:
@@ -33,7 +29,6 @@ else:
 
 
 class IOStream(BaseIOStream):
-
     def _handle_events(self, fd, events):
         if self._closed:
             return
@@ -88,8 +83,7 @@ class IOStream(BaseIOStream):
                 self.close(exc_info=True)
                 return
 
-        if self._read_future is not None and \
-           self._read_buffer_size >= self._read_bytes:
+        if self._read_future is not None and self._read_buffer_size >= self._read_bytes:
             future, self._read_future = self._read_future, None
             data = b"".join(self._read_buffer)
             self._read_buffer.clear()
@@ -161,7 +155,6 @@ class IOStream(BaseIOStream):
 
 
 class Connection(_Connection):
-
     def __init__(self, *args, **kwargs):
         super(Connection, self).__init__(*args, **kwargs)
 
@@ -173,12 +166,12 @@ class Connection(_Connection):
 
     def set_close_callback(self, callback):
         self._close_callback = callback
-
+        
     def stream_close_callback(self):
         if self._close_callback and callable(self._close_callback):
             close_callback, self._close_callback = self._close_callback, None
             close_callback()
-
+                
         if self._sock:
             self._sock.set_close_callback(None)
             self._sock = None
@@ -246,8 +239,7 @@ class Connection(_Connection):
                     self._loop_connect_timeout = None
                     if not self._sock:
                         sock.close((None, IOError("Connect timeout"), None))
-                self._loop_connect_timeout = self._loop.call_later(
-                    self.connect_timeout, timeout)
+                self._loop_connect_timeout = self._loop.call_later(self.connect_timeout, timeout)
 
             def connected(future):
                 if self._loop_connect_timeout:
@@ -287,8 +279,7 @@ class Connection(_Connection):
                 self._sock.close()
                 self._sock = None
             exc = err.OperationalError(
-                2003, "Can't connect to MySQL server on %s (%r)" % (
-                    self.unix_socket or ("%s:%s" % (self.host, self.port)), e))
+                2003, "Can't connect to MySQL server on %s (%r)" % (self.unix_socket or ("%s:%s" % (self.host, self.port)), e))
             # Keep original exception and traceback to investigate error.
             exc.original_exception = e
             exc.traceback = traceback.format_exc()
@@ -305,8 +296,7 @@ class Connection(_Connection):
             self._rbuffer_size = 0
 
         if num_bytes <= self._rfile._read_buffer_size:
-            data, data_len = b''.join(
-                self._rfile._read_buffer), self._rfile._read_buffer_size
+            data, data_len = b''.join(self._rfile._read_buffer), self._rfile._read_buffer_size
             self._rfile._read_buffer.clear()
             self._rfile._read_buffer_size = 0
 
@@ -326,8 +316,7 @@ class Connection(_Connection):
                 self._force_close()
                 return child_gr.throw(err.OperationalError(
                     CR.CR_SERVER_LOST,
-                    "Lost connection to MySQL server during query (%s)" % (
-                        future.exception(),)))
+                    "Lost connection to MySQL server during query (%s)" % (future.exception(),)))
 
             data = future.result()
             if len(data) == num_bytes:
@@ -366,8 +355,7 @@ class Connection(_Connection):
         if isinstance(self.user, text_type):
             self.user = self.user.encode(self.encoding)
 
-        data_init = struct.pack(
-            '<iIB23s', self.client_flag, 1, charset_id, b'')
+        data_init = struct.pack('<iIB23s', self.client_flag, 1, charset_id, b'')
 
         if self.ssl and self.server_capabilities & CLIENT.SSL:
             self.write_packet(data_init)
@@ -382,8 +370,7 @@ class Connection(_Connection):
                 else:
                     child_gr.switch(future.result())
 
-            future = self._sock.start_tls(
-                False, self.ctx, server_hostname=self.host)
+            future = self._sock.start_tls(False, self.ctx, server_hostname=self.host)
             self._loop.add_future(future, finish)
             self._rfile = self._sock = main.switch()
 
@@ -397,9 +384,7 @@ class Connection(_Connection):
             data += lenenc_int(len(authresp)) + authresp
         elif self.server_capabilities & CLIENT.SECURE_CONNECTION:
             data += struct.pack('B', len(authresp)) + authresp
-        else:
-            # pragma: no cover -
-            #         not testing against servers without secure auth (>=5.0)
+        else:  # pragma: no cover - not testing against servers without secure auth (>=5.0)
             data += authresp + b'\0'
 
         if self.db and self.server_capabilities & CLIENT.CONNECT_WITH_DB:
@@ -422,23 +407,13 @@ class Connection(_Connection):
             # https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchRequest
             auth_packet.read_uint8()  # 0xfe packet identifier
             plugin_name = auth_packet.read_string()
-            if self.server_capabilities & CLIENT.PLUGIN_AUTH \
-               and plugin_name is not None:
+            if self.server_capabilities & CLIENT.PLUGIN_AUTH and plugin_name is not None:
                 auth_packet = self._process_auth(plugin_name, auth_packet)
             else:
                 # send legacy handshake
-                data = _scramble_323(self.password.encode(
-                    'latin1'), self.salt) + b'\0'
+                data = _scramble_323(self.password.encode('latin1'), self.salt) + b'\0'
                 self.write_packet(data)
                 auth_packet = self._read_packet()
 
     def __str__(self):
-        return "%s %s" % (
-            super(Connection, self).__str__(),
-            {
-                "host": self.host or self.unix_socket,
-                "user": self.user,
-                "database": self.db,
-                "port": self.port
-            }
-        )
+        return "%s %s" % (super(Connection, self).__str__(), {"host": self.host or self.unix_socket, "user": self.user, "database": self.db, "port": self.port})

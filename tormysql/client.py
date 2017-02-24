@@ -14,7 +14,6 @@ from .cursor import Cursor
 
 
 class Client(object):
-
     def __init__(self, *args, **kwargs):
         self._args = args
         self._kwargs = kwargs
@@ -22,20 +21,17 @@ class Client(object):
         self._closed = False
         self._close_callback = None
 
-        if "cursorclass" in kwargs and \
-           issubclass(kwargs["cursorclass"], Cursor):
+        if "cursorclass" in kwargs and issubclass(kwargs["cursorclass"], Cursor):
             kwargs["cursorclass"] = kwargs["cursorclass"].__delegate_class__
 
     def connect(self):
         future = Future()
-
         def on_connected(connection_future):
             if connection_future._exc_info is None:
                 future.set_result(self)
             else:
                 future.set_exc_info(connection_future.exc_info())
-        self._connection = Connection(
-            defer_connect=True, *self._args, **self._kwargs)
+        self._connection = Connection(defer_connect = True, *self._args, **self._kwargs)
         self._connection.set_close_callback(self.connection_close_callback)
         connection_future = async_call_method(self._connection.connect)
         IOLoop.current().add_future(connection_future, on_connected)
@@ -78,8 +74,7 @@ class Client(object):
             cursor_cls = self._connection.cursorclass
 
         cursor = self._connection.cursor(
-            cursor_cls.__delegate_class__ if cursor_cls and issubclass(
-                cursor_cls, Cursor) else cursor_cls
+            cursor_cls.__delegate_class__ if cursor_cls and issubclass(cursor_cls, Cursor) else cursor_cls
         )
 
         if issubclass(cursor_cls, Cursor):
