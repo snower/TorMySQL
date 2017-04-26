@@ -70,7 +70,10 @@ class IOStream(BaseIOStream):
                 chunk = self.socket.recv(self.read_chunk_size)
                 if not chunk:
                     break
-                self._read_buffer += chunk
+                if self._read_buffer_size:
+                    self._read_buffer += chunk
+                else:
+                    self._read_buffer = bytearray(chunk)
                 self._read_buffer_size += len(chunk)
             except (socket.error, IOError, OSError) as e:
                 en = e.errno if hasattr(e, 'errno') else e.args[0]
@@ -138,7 +141,10 @@ class IOStream(BaseIOStream):
             raise StreamClosedError(real_error=self.error)
 
         if data:
-            self._write_buffer += data
+            if self._write_buffer_size:
+                self._write_buffer += data
+            else:
+                self._write_buffer = bytearray(data)
             self._write_buffer_size += len(data)
 
         if not self._connecting:
