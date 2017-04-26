@@ -85,7 +85,7 @@ class IOStream(BaseIOStream):
 
         if self._read_future is not None and self._read_buffer_size >= self._read_bytes:
             future, self._read_future = self._read_future, None
-            self._read_buffer, data = self._read_buffer[:0], self._read_buffer
+            self._read_buffer, data = bytearray(), self._read_buffer
             self._read_buffer_size = 0
             self._read_bytes = 0
             future.set_result(data)
@@ -104,7 +104,7 @@ class IOStream(BaseIOStream):
         self._read_partial = False
         if self._read_buffer_size >= self._read_bytes:
             future, self._read_future = self._read_future, None
-            self._read_buffer, data = self._read_buffer[:0], self._read_buffer
+            self._read_buffer, data = bytearray(), self._read_buffer
             self._read_buffer_size = 0
             self._read_bytes = 0
             future.set_result(data)
@@ -125,7 +125,7 @@ class IOStream(BaseIOStream):
 
         if not self._write_buffer_size:
             if self._write_buffer_pos > 0:
-                self._write_buffer = self._write_buffer[:0]
+                self._write_buffer = bytearray()
                 self._write_buffer_pos = 0
 
             if self._state & self.io_loop.WRITE:
@@ -293,7 +293,7 @@ class Connection(_Connection):
 
         if num_bytes <= self._rfile._read_buffer_size:
             data, data_len = self._rfile._read_buffer, self._rfile._read_buffer_size
-            self._rfile._read_buffer = self._rfile._read_buffer[:0]
+            self._rfile._read_buffer = bytearray()
             self._rfile._read_buffer_size = 0
 
             if data_len == num_bytes:
