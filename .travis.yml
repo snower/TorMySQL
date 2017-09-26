@@ -1,3 +1,4 @@
+sudo: required
 language: python
 python:
   - "2.7"
@@ -6,10 +7,19 @@ python:
   - "3.5"
   - "3.6"
   - "pypy"
+
+cache: pip
+
+services:
+  - mysql
+
 env:
-  - MYSQL_POOL=20 MYSQL_HOST=127.0.0.1 MYSQL_USER=travis MYSQL_PASSWD='' MYSQL_DB=test MYSQL_CHARSET=utf8
+  - MYSQL_POOL=20 MYSQL_HOST=127.0.0.1 MYSQL_USER=root MYSQL_PASSWD='' MYSQL_DB=test MYSQL_CHARSET=utf8
+
 install: "pip install -e ."
+
 before_script:
-  - mysql -e "create database IF NOT EXISTS test;use test;CREATE TABLE IF NOT EXISTS test (id INT, data VARCHAR(100));INSERT INTO test (id, data) VALUES (1, 'test');" -utravis
+  - mysql -e "create database IF NOT EXISTS test;use test;CREATE TABLE IF NOT EXISTS test (id INT, data VARCHAR(100));INSERT INTO test (id, data) VALUES (1, 'test');" -h127.0.0.1 -uroot
   - pip install -r requirements.dev.txt
+
 script: ./run-tests
