@@ -15,7 +15,7 @@ setup(
         'greenlet>=0.4.2',
     ],
     author=['snower', 'mosquito'],
-    author_email=['sujian199@gmail.com', 'me@mosquito.su'],
+    author_email=['sujian199@gmail.com'],
     url='https://github.com/snower/TorMySQL',
     license='MIT',
     keywords=[
