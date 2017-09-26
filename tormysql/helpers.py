@@ -2,7 +2,9 @@
 # 16/3/25
 # create by: snower
 
+import sys
 from tornado import gen
+from tornado.util import raise_exc_info
 from .pool import ConnectionPool as BaseConnectionPool
 from . import log
 
@@ -71,6 +73,13 @@ class ConnectionPool(BaseConnectionPool):
             cursor = connection.cursor(cursor_cls)
             try:
                 yield cursor.execute(query, params)
+                if not connection._connection.autocommit_mode:
+                    yield connection.commit()
+            except:
+                exc_info = sys.exc_info()
+                if not connection._connection.autocommit_mode:
+                    yield connection.rollback()
+                raise_exc_info(exc_info)
             finally:
                 yield cursor.close()
         raise gen.Return(cursor)
@@ -81,6 +90,13 @@ class ConnectionPool(BaseConnectionPool):
             cursor = connection.cursor(cursor_cls)
             try:
                 yield cursor.executemany(query, params)
+                if not connection._connection.autocommit_mode:
+                    yield connection.commit()
+            except:
+                exc_info = sys.exc_info()
+                if not connection._connection.autocommit_mode:
+                    yield connection.rollback()
+                raise_exc_info(exc_info)
             finally:
                 yield cursor.close()
         raise gen.Return(cursor)
@@ -91,7 +107,8 @@ class ConnectionPool(BaseConnectionPool):
         try:
             yield connection.begin()
         except:
+            exc_info = sys.exc_info()
             connection.close()
-            raise
+            raise_exc_info(exc_info)
         transaction = Transaction(self, connection)
         raise gen.Return(transaction)
