@@ -266,8 +266,7 @@ class ConnectionPool(object):
         if self._closed:
             raise ConnectionPoolClosedError("Connection pool closed.")
         self._closed = True
-        if not self._connections_count:
-            return None
+
         self._close_future = close_future = Future()
 
         if self._used_connections:
@@ -293,6 +292,11 @@ class ConnectionPool(object):
             connection = self._connections.popleft()
             self._used_connections[id(connection)] = connection
             connection.do_close()
+
+        if not self._connections_count:
+            close_future.set_result(None)
+            self._close_future = None
+
         return close_future
 
     def check_idle_connections(self):
