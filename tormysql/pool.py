@@ -265,8 +265,9 @@ class ConnectionPool(object):
     def close(self, timeout = None):
         if self._closed:
             raise ConnectionPoolClosedError("Connection pool closed.")
-
         self._closed = True
+        if not self._connections_count:
+            return None
         self._close_future = close_future = Future()
 
         if self._used_connections:
