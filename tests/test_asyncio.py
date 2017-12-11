@@ -9,6 +9,7 @@ try:
     use_asyncio()
 except:
     pass
+from tornado.ioloop import IOLoop
 from tormysql.cursor import SSCursor
 from tormysql.helpers import ConnectionPool
 from tornado.testing import AsyncTestCase
@@ -45,10 +46,9 @@ class TestAsyncioCase(AsyncTestCase):
             import asyncio
             from tornado.platform.asyncio import AsyncIOMainLoop
             AsyncIOMainLoop().install()
-            from tornado.ioloop import IOLoop
             return IOLoop.current()
         except:
-            return super(TestAsyncioCase, self).get_new_ioloop()
+            return IOLoop.current()
 
     if py3:
         exec("""

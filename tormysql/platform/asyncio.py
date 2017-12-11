@@ -34,19 +34,29 @@ class IOStream(Protocol):
     def set_close_callback(self, callback):
         self._close_callback = callback
 
-    def close(self, exc_info=False):
-        if self._connect_future and exc_info:
-            self._connect_future.set_exception(exc_info[1])
+    def on_closed(self, exc_info = False):
+        if self._connect_future:
+            if exc_info:
+                self._connect_future.set_exception(exc_info[1])
+            else:
+                self._connect_future.set_exception(StreamClosedError('Connect Fail'))
             self._connect_future = None
 
         if self._close_callback:
             close_callback, self._close_callback = self._close_callback, None
             close_callback()
 
+        self._closed = True
+
+    def close(self, exc_info=False):
+        if self._closed:
+            return
+
         if self._transport:
             self._transport.close()
             self._transport = None
-        self._closed = True
+        else:
+            self.close(exc_info)
 
     @coroutine
     def _connect(self, address, callback=None, server_hostname=None):
@@ -102,7 +112,11 @@ class IOStream(Protocol):
             future.set_result(data)
 
     def connection_lost(self, exc):
-        self.close(exc)
+        self.on_closed(exc)
+        self._transport = None
+
+    def eof_received(self):
+        return True
 
     def read_bytes(self, num_bytes):
         assert self._read_future is None, "Already reading"

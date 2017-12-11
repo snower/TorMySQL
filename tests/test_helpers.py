@@ -3,6 +3,7 @@
 # create by: snower
 
 import os
+from tornado.ioloop import IOLoop
 from tormysql.helpers import ConnectionPool
 from tornado.testing import AsyncTestCase
 from tornado.testing import gen_test
@@ -31,6 +32,9 @@ class TestHelpersCase(AsyncTestCase):
     def tearDown(self):
         super(TestHelpersCase, self).tearDown()
         self.pool.close()
+
+    def get_new_ioloop(self):
+        return IOLoop.current()
 
     @gen_test
     def test_execute(self):
