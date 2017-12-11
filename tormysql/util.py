@@ -18,11 +18,15 @@ def async_call_method(fun, *args, **kwargs):
     def finish():
         try:
             result = fun(*args, **kwargs)
+            import logging
+            logging.info("async_call_method %s %s %s %s %s", future, future._callbacks, args, kwargs, result)
             if future._callbacks:
                 ioloop.call_soon(future.set_result, result)
             else:
                 future.set_result(result)
         except Exception as e:
+            import logging
+            logging.info("async_call_method %s %s %s %s %s", future, future._callbacks, args, kwargs, e)
             if future._callbacks:
                 ioloop.call_soon(future.set_exception, e)
             else:

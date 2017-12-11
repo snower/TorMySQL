@@ -35,6 +35,8 @@ class IOStream(Protocol):
         self._close_callback = callback
 
     def on_closed(self, exc_info = False):
+        import logging
+        logging.info("close %s", self)
         if self._connect_future:
             if exc_info:
                 self._connect_future.set_exception(exc_info[1] if isinstance(exc_info, tuple) else exc_info)
