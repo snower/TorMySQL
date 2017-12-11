@@ -61,12 +61,11 @@ class IOStream(Protocol):
 
         if self._transport:
             self._transport.close()
-            self._transport = None
         else:
             self.close(exc_info)
 
     @coroutine
-    def _connect(self, address, callback=None, server_hostname=None):
+    def _connect(self, address, server_hostname=None):
         if isinstance(address, (str, bytes)):
             self._transport, _ = yield from self._loop.create_unix_connection(lambda : self, address, sock=self._sock, server_hostname=server_hostname)
         else:
@@ -94,7 +93,7 @@ class IOStream(Protocol):
                 future.set_result(connect_future.result())
             self._connect_future = None
 
-        connect_future = ensure_future(self._connect(address, None, server_hostname))
+        connect_future = ensure_future(self._connect(address, server_hostname))
         connect_future.add_done_callback(connected)
         return self._connect_future
 
@@ -127,7 +126,7 @@ class IOStream(Protocol):
 
     def read_bytes(self, num_bytes):
         assert self._read_future is None, "Already reading"
-        if not self._transport:
+        if self._closed:
             raise StreamClosedError('Already Closed')
 
         future = self._read_future = Future()
@@ -142,7 +141,7 @@ class IOStream(Protocol):
 
     def write(self, data):
         assert isinstance(data, (bytes, bytearray))
-        if not self._transport:
+        if self._closed:
             raise StreamClosedError('Already Closed')
 
         self._transport.write(data)
