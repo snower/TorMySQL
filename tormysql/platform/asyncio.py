@@ -35,25 +35,23 @@ class IOStream(Protocol):
         self._close_callback = callback
 
     def on_closed(self, exc_info = False):
-        import logging
-        logging.info("close %s", self)
         if self._connect_future:
             if exc_info:
-                self._connect_future.set_exception(exc_info[1] if isinstance(exc_info, tuple) else exc_info)
+                self._loop.call_soon(self._connect_future.set_exception, exc_info[1] if isinstance(exc_info, tuple) else exc_info)
             else:
-                self._connect_future.set_exception(StreamClosedError('Connect Fail'))
+                self._loop.call_soon(self._connect_future.set_exception, StreamClosedError('Connect Fail'))
             self._connect_future = None
 
         if self._read_future:
             if exc_info:
-                self._read_future.set_exception(exc_info[1] if isinstance(exc_info, tuple) else exc_info)
+                self._loop.call_soon(self._read_future.set_exception, exc_info[1] if isinstance(exc_info, tuple) else exc_info)
             else:
-                self._read_future.set_exception(StreamClosedError('Connect Fail'))
+                self._loop.call_soon(self._read_future.set_exception, StreamClosedError('Connect Fail'))
             self._read_future = None
 
         if self._close_callback:
             close_callback, self._close_callback = self._close_callback, None
-            close_callback()
+            self._loop.call_soon(close_callback)
 
         self._closed = True
 
@@ -64,7 +62,7 @@ class IOStream(Protocol):
         if self._transport:
             self._transport.close()
         else:
-            self.close(exc_info)
+            self.on_closed(exc_info)
 
     @coroutine
     def _connect(self, address, server_hostname=None):
