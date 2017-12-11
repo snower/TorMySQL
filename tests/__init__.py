@@ -1,9 +1,26 @@
 #!/usr/bin/env python
 # encoding: utf-8
+
 import os
+import select
+from tormysql.platform import use_tornado
+use_tornado()
 from tormysql import ConnectionPool
+from tornado.ioloop import IOLoop as BaseIOLoop
 from tornado.testing import AsyncTestCase
 
+class IOLoop(BaseIOLoop):
+    @classmethod
+    def configurable_default(cls):
+        if hasattr(select, "epoll"):
+            from tornado.platform.epoll import EPollIOLoop
+            return EPollIOLoop
+        if hasattr(select, "kqueue"):
+            # Python 2.6+ on BSD or Mac
+            from tornado.platform.kqueue import KQueueIOLoop
+            return KQueueIOLoop
+        from tornado.platform.select import SelectIOLoop
+        return SelectIOLoop
 
 class BaseTestCase(AsyncTestCase):
     PARAMS = dict(
@@ -30,3 +47,6 @@ class BaseTestCase(AsyncTestCase):
         super(BaseTestCase, self).tearDown()
         if not self.pool.closed:
             self.pool.close()
+
+    def get_new_ioloop(self):
+        return IOLoop()

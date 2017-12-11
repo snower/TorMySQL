@@ -1,5 +1,5 @@
 '''
-TorMySQL: presents a Tornado Future-based API and greenlet for non-blocking access to MySQL.
+TorMySQL: presents a Tornado and asyncio Future-based API and greenlet for non-blocking access to MySQL.
 
 The MIT License (MIT)
 

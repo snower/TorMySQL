@@ -4,23 +4,27 @@
 
 import sys
 import greenlet
-from tornado.ioloop import IOLoop
-from tornado.concurrent import Future
+from . import platform
 
+if sys.version_info[0] >= 3:
+    py3 = True
+else:
+    py3 = False
 
 def async_call_method(fun, *args, **kwargs):
-    future = Future()
+    future = platform.Future()
+    ioloop = platform.current_ioloop()
 
     def finish():
         try:
             result = fun(*args, **kwargs)
             if future._callbacks:
-                IOLoop.current().add_callback(future.set_result, result)
+                ioloop.call_soon(future.set_result, result)
             else:
                 future.set_result(result)
         except:
             if future._callbacks:
-                IOLoop.current().add_callback(future.set_exc_info, sys.exc_info())
+                ioloop.call_soon(future.set_exc_info, sys.exc_info())
             else:
                 future.set_exc_info(sys.exc_info())
 

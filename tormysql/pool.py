@@ -8,11 +8,11 @@ MySQL asynchronous client pool.
 
 import time
 from collections import deque
-from tornado.concurrent import Future
-from tornado.ioloop import IOLoop
+from . import platform
 from pymysql._compat import text_type
 from .client import Client
 from . import log
+from .util import py3
 
 
 class ConnectionPoolClosedError(Exception):
@@ -58,6 +58,16 @@ class Connection(Client):
         del exc_info
         self.close()
 
+    if py3:
+        exec("""
+async def __aenter__(self):
+    return self
+
+async def __aexit__(self, *exc_info):
+    del exc_info
+    self.close()
+        """)
+
     def __del__(self):
         try:
             self.close()
@@ -97,6 +107,7 @@ class RecordQueryConnection(Connection):
 
 class ConnectionPool(object):
     def __init__(self, *args, **kwargs):
+        self._loop = None
         self._max_connections = kwargs.pop("max_connections") if "max_connections" in kwargs else 32
         self._idle_seconds = kwargs.pop("idle_seconds") if "idle_seconds" in kwargs else 7200
         self._wait_connection_timeout = kwargs.pop("wait_connection_timeout") if "wait_connection_timeout" in kwargs else 8
@@ -121,10 +132,11 @@ class ConnectionPool(object):
         return self._closed
 
     def connection_connected_callback(self, future, connection_future):
-        if connection_future._exc_info is None:
-            future.set_result(connection_future.result())
+        if (hasattr(connection_future, "_exc_info") and connection_future._exc_info is not None) \
+                or (hasattr(connection_future, "_exception") and connection_future._exception is not None):
+            future.set_exception(connection_future.exception())
         else:
-            future.set_exc_info(connection_future.exc_info())
+            future.set_result(connection_future.result())
 
             while self._wait_connections and self._connections:
                 connection = self._connections.pop()
@@ -139,41 +151,43 @@ class ConnectionPool(object):
                 wait_future, create_time = self._wait_connections.popleft()
                 wait_time = time.time() - create_time
                 if wait_time >= self._wait_connection_timeout:
-                    IOLoop.current().add_callback(wait_future.set_exception, WaitConnectionTimeoutError(
+                    self._loop.call_soon(wait_future.set_exception, WaitConnectionTimeoutError(
                         "Wait connection timeout, used time %.2fs." % wait_time))
                 else:
-                    IOLoop.current().add_callback(self.init_connection, wait_future)
+                    self._loop.call_soon(self.init_connection, wait_future)
 
-    def init_connection(self, future):
+    def init_connection(self, future = None):
+        self._loop = platform.current_ioloop()
+        future = future or platform.Future()
         connection = self._connection_cls(self, *self._args, **self._kwargs)
         connection.set_close_callback(self.connection_close_callback)
         connection_future = connection.connect()
         self._connections_count += 1
         self._used_connections[id(connection)] = connection
-        IOLoop.current().add_future(connection_future,
-                                    lambda connection_future: self.connection_connected_callback(future,
-                                                                                                 connection_future))
+        connection_future.add_done_callback(lambda connection_future: self.connection_connected_callback(future, connection_future))
 
         if self._idle_seconds > 0 and not self._check_idle_callback:
-            IOLoop.current().add_timeout(time.time() + min(self._idle_seconds, 60), self.check_idle_connections)
+            self._loop.call_later(min(self._idle_seconds, 60), self.check_idle_connections)
             self._check_idle_callback = True
+        return future
 
     def get_connection(self):
         if self._closed:
             raise ConnectionPoolClosedError("Connection pool closed.")
 
-        future = Future()
         while self._connections:
             connection = self._connections.pop()
             self._used_connections[id(connection)] = connection
             connection.used_time = time.time()
             if connection.open:
+                future = platform.Future()
                 future.set_result(connection)
                 return future
 
         if self._connections_count < self._max_connections:
-            self.init_connection(future)
+            future = self.init_connection()
         else:
+            future = platform.Future()
             self._wait_connections.append((future, time.time()))
         return future
 
@@ -186,7 +200,7 @@ class ConnectionPool(object):
             return connection.do_close()
 
         if not connection.open:
-            future = Future()
+            future = platform.Future()
             future.set_result(None)
             return future
 
@@ -206,12 +220,12 @@ class ConnectionPool(object):
                 connection.idle_time = time.time()
             except KeyError:
                 if connection not in self._connections:
-                    IOLoop.current().add_callback(connection.do_close)
+                    self._loop.call_soon(connection.do_close)
                     raise ConnectionNotFoundError("Connection not found.")
                 else:
                     raise ConnectionNotUsedError("Connection is not used, you maybe close wrong connection.")
 
-        future = Future()
+        future = platform.Future()
         future.set_result(None)
         return future
 
@@ -224,20 +238,19 @@ class ConnectionPool(object):
                 self._wait_connection_timeout_futures.append((wait_future, wait_time))
                 continue
             connection.used_time = now
-            IOLoop.current().add_callback(wait_future.set_result, connection)
+            self._loop.call_soon(wait_future.set_result, connection)
             if self._wait_connection_timeout_futures:
-                IOLoop.current().add_callback(self.do_wait_future_exception_timeout)
+                self._loop.call_soon(self.do_wait_future_exception_timeout)
             return True
 
         if self._wait_connection_timeout_futures:
-            IOLoop.current().add_callback(self.do_wait_future_exception_timeout)
+            self._loop.call_soon(self.do_wait_future_exception_timeout)
         return False
 
     def do_wait_future_exception_timeout(self):
-        ioloop = IOLoop.current()
         while self._wait_connection_timeout_futures:
             wait_future, wait_time = self._wait_connection_timeout_futures.popleft()
-            ioloop.add_callback(wait_future.set_exception,
+            self._loop.call_soon(wait_future.set_exception,
                                 WaitConnectionTimeoutError("Wait connection timeout, used time %.2fs." % wait_time))
 
     def close_connection(self, connection):
@@ -259,15 +272,16 @@ class ConnectionPool(object):
             except ValueError:
                 log.get_log().warning("Close unknown Connection %s.", connection)
         if self._close_future and not self._used_connections and not self._connections:
-            IOLoop.current().add_callback(self._close_future.set_result, None)
+            self._loop.call_soon(self._close_future.set_result, None)
             self._close_future = None
 
     def close(self, timeout = None):
+        self._loop = platform.current_ioloop()
         if self._closed:
             raise ConnectionPoolClosedError("Connection pool closed.")
         self._closed = True
 
-        self._close_future = close_future = Future()
+        self._close_future = close_future = platform.Future()
 
         if self._used_connections:
             if timeout:
@@ -276,16 +290,16 @@ class ConnectionPool(object):
                         close_future, self._close_future = self._close_future, None
                         close_future.set_exception(
                             ConnectionPoolUsedError("Connection pool is used, you must wait all query is finish."))
-                IOLoop.current().add_timeout(time.time() + timeout, on_timeout)
+                self._loop.call_later(timeout, on_timeout)
 
         while len(self._wait_connections):
             future, create_time = self._wait_connections.popleft()
             wait_time = time.time() - create_time
             if wait_time >= self._wait_connection_timeout:
-                IOLoop.current().add_callback(future.set_exception, WaitConnectionTimeoutError(
+                self._loop.call_soon(future.set_exception, WaitConnectionTimeoutError(
                     "Wait connection timeout, used time %.2fs." % wait_time))
             else:
-                IOLoop.current().add_callback(future.set_exception,
+                self._loop.call_soon(future.set_exception,
                                               ConnectionPoolClosedError("Connection pool closed."))
 
         while len(self._connections):
@@ -300,6 +314,7 @@ class ConnectionPool(object):
         return close_future
 
     def check_idle_connections(self):
+        self._loop = platform.current_ioloop()
         now = time.time()
 
         while self._wait_connections:
@@ -308,7 +323,7 @@ class ConnectionPool(object):
             if wait_time < self._wait_connection_timeout:
                 break
             self._wait_connections.popleft()
-            IOLoop.current().add_callback(wait_future.set_exception, WaitConnectionTimeoutError(
+            self._loop.call_soon(wait_future.set_exception, WaitConnectionTimeoutError(
                 "Wait connection timeout, used time %.2fs." % wait_time))
 
         for connection in self._used_connections.values():
@@ -339,7 +354,7 @@ class ConnectionPool(object):
                 next_check_time = connection.idle_time + self._idle_seconds
                 
         if not self._closed and (self._connections or self._used_connections):
-            IOLoop.current().add_timeout(min(next_check_time, now + 60), self.check_idle_connections)
+            self._loop.call_later(min(next_check_time - now, 60), self.check_idle_connections)
         else:
             self._check_idle_callback = False
 

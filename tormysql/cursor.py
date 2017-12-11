@@ -2,11 +2,11 @@
 # 14-8-8
 # create by: snower
 
-from tornado.concurrent import Future
+from . import platform
 from pymysql.cursors import (
     Cursor as OriginCursor, DictCursor as OriginDictCursor,
     SSCursor as OriginSSCursor, SSDictCursor as OriginSSDictCursor)
-from .util import async_call_method
+from .util import async_call_method, py3
 
 
 class CursorNotReadAllDataError(Exception):
@@ -30,7 +30,7 @@ class Cursor(object):
     def close(self):
         if self._cursor.connection is None or not self._cursor._result or not self._cursor._result.has_next:
             self._cursor.close()
-            future = Future()
+            future = platform.Future()
             future.set_result(None)
         else:
             future = async_call_method(self._cursor.close)
@@ -79,6 +79,19 @@ class Cursor(object):
             raise CursorNotReadAllDataError("If cursor not read all data, the connection next query is error.")
         self.close()
 
+    if py3:
+        exec("""
+async def __aiter__(self):
+    return self._cursor.__iter__()
+
+async def __aenter__(self):
+    return self
+
+async def __aexit__(self, *exc_info):
+    del exc_info
+    await self.close()
+        """)
+
 setattr(OriginCursor, "__tormysql_class__", Cursor)
 
 
@@ -93,7 +106,7 @@ class SSCursor(Cursor):
 
     def close(self):
         if self._cursor.connection is None:
-            future = Future()
+            future = platform.Future()
             future.set_result(None)
         else:
             future = async_call_method(self._cursor.close)
@@ -127,6 +140,25 @@ class SSCursor(Cursor):
 
     def __exit__(self, *exc_info):
         raise AttributeError("SSCursor not support with statement")
+
+    if py3:
+        exec("""
+async def __aiter__(self):
+    return self
+
+async def __anext__(self):
+    result = await async_call_method(self._cursor.fetchone)
+    if result is None:
+        raise StopAsyncIteration()
+    return result
+
+async def __aenter__(self):
+    return self
+
+async def __aexit__(self, *exc_info):
+    del exc_info
+    await self.close()
+        """)
 
 setattr(OriginSSCursor, "__tormysql_class__", SSCursor)
 

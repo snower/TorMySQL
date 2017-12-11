@@ -5,20 +5,15 @@
 from __future__ import absolute_import, division, print_function, with_statement
 
 import greenlet
-import socket
 import sys
 import struct
 import traceback
-import errno
 from pymysql import err
 from pymysql.charset import charset_by_name
 from pymysql.constants import COMMAND, CLIENT, CR
 from pymysql.connections import Connection as _Connection, lenenc_int, text_type
 from pymysql.connections import _scramble, _scramble_323
-from tornado.concurrent import Future
-from tornado.iostream import IOStream as BaseIOStream, StreamClosedError, errno_from_exception, _ERRNO_WOULDBLOCK
-from tornado.ioloop import IOLoop
-
+from . import platform
 
 if sys.version_info[0] >= 3:
     import io
@@ -26,134 +21,6 @@ if sys.version_info[0] >= 3:
 else:
     import cStringIO
     StringIO = cStringIO.StringIO
-
-
-class IOStream(BaseIOStream):
-    def _handle_events(self, fd, events):
-        if self._closed:
-            return
-        try:
-            if self._connecting:
-                self._handle_connect()
-            if self._closed:
-                return
-            if events & self.io_loop.READ:
-                self._handle_read()
-            if self._closed:
-                return
-            if events & self.io_loop.WRITE:
-                self._handle_write()
-            if self._closed:
-                return
-            if events & self.io_loop.ERROR:
-                self.error = self.get_fd_error()
-                self.io_loop.add_callback(self.close)
-                return
-        except Exception:
-            self.close(exc_info=True)
-            raise
-
-    def _handle_connect(self):
-        super(IOStream, self)._handle_connect()
-
-        if not self.closed():
-            self._state = self.io_loop.ERROR | self.io_loop.READ
-            if self._write_buffer:
-                self._state = self._state | self.io_loop.WRITE
-            self.io_loop.update_handler(self.fileno(), self._state)
-
-    def _handle_read(self):
-        chunk = True
-
-        while True:
-            try:
-                chunk = self.socket.recv(self.read_chunk_size)
-                if not chunk:
-                    break
-                if self._read_buffer_size:
-                    self._read_buffer += chunk
-                else:
-                    self._read_buffer = bytearray(chunk)
-                self._read_buffer_size += len(chunk)
-            except (socket.error, IOError, OSError) as e:
-                en = e.errno if hasattr(e, 'errno') else e.args[0]
-                if en in _ERRNO_WOULDBLOCK:
-                    break
-
-                if en == errno.EINTR:
-                    continue
-
-                self.close(exc_info=True)
-                return
-
-        if self._read_future is not None and self._read_buffer_size >= self._read_bytes:
-            future, self._read_future = self._read_future, None
-            self._read_buffer, data = bytearray(), self._read_buffer
-            self._read_buffer_size = 0
-            self._read_bytes = 0
-            future.set_result(data)
-
-        if not chunk:
-            self.close()
-            return
-
-    def read(self, num_bytes):
-        assert self._read_future is None, "Already reading"
-        if self._closed:
-            raise StreamClosedError(real_error=self.error)
-
-        future = self._read_future = Future()
-        self._read_bytes = num_bytes
-        self._read_partial = False
-        if self._read_buffer_size >= self._read_bytes:
-            future, self._read_future = self._read_future, None
-            self._read_buffer, data = bytearray(), self._read_buffer
-            self._read_buffer_size = 0
-            self._read_bytes = 0
-            future.set_result(data)
-        return future
-
-    read_bytes = read
-
-    def _handle_write(self):
-        try:
-            num_bytes = self.socket.send(memoryview(self._write_buffer)[self._write_buffer_pos: self._write_buffer_pos + self._write_buffer_size])
-            self._write_buffer_pos += num_bytes
-            self._write_buffer_size -= num_bytes
-        except (socket.error, IOError, OSError) as e:
-            en = e.errno if hasattr(e, 'errno') else e.args[0]
-            if en not in _ERRNO_WOULDBLOCK:
-                self.close(exc_info=True)
-                return
-
-        if not self._write_buffer_size:
-            if self._write_buffer_pos > 0:
-                self._write_buffer = bytearray()
-                self._write_buffer_pos = 0
-
-            if self._state & self.io_loop.WRITE:
-                self._state = self._state & ~self.io_loop.WRITE
-                self.io_loop.update_handler(self.fileno(), self._state)
-
-    def write(self, data):
-        assert isinstance(data, (bytes, bytearray))
-        if self._closed:
-            raise StreamClosedError(real_error=self.error)
-
-        if data:
-            if self._write_buffer_size:
-                self._write_buffer += data
-            else:
-                self._write_buffer = bytearray(data)
-            self._write_buffer_size += len(data)
-
-        if not self._connecting:
-            self._handle_write()
-            if self._write_buffer_size:
-                if not self._state & self.io_loop.WRITE:
-                    self._state = self._state | self.io_loop.WRITE
-                    self.io_loop.update_handler(self.fileno(), self._state)
-
 
 class Connection(_Connection):
     def __init__(self, *args, **kwargs):
@@ -163,7 +30,6 @@ class Connection(_Connection):
         self._rbuffer = StringIO(b'')
         self._rbuffer_size = 0
         self._loop = None
-        self._loop_connect_timeout = None
 
     def set_close_callback(self, callback):
         self._close_callback = callback
@@ -213,48 +79,30 @@ class Connection(_Connection):
 
     def connect(self):
         self._closed = False
-        self._loop = IOLoop.current()
+        self._loop = platform.current_ioloop()
         try:
             if self.unix_socket and self.host in ('localhost', '127.0.0.1'):
-                sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 self.host_info = "Localhost via UNIX socket"
                 address = self.unix_socket
             else:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-                if self.bind_address is not None:
-                    sock.bind((self.bind_address, 0))
                 self.host_info = "socket %s:%d" % (self.host, self.port)
                 address = (self.host, self.port)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            sock = IOStream(sock)
+            sock = platform.IOStream(address, self.bind_address)
             sock.set_close_callback(self.stream_close_callback)
 
             child_gr = greenlet.getcurrent()
             main = child_gr.parent
             assert main is not None, "Execut must be running in child greenlet"
 
-            self._loop_connect_timeout = None
-            if self.connect_timeout:
-                def timeout():
-                    self._loop_connect_timeout = None
-                    if not self._sock:
-                        sock.close((None, IOError("Connect timeout"), None))
-                self._loop_connect_timeout = self._loop.call_later(self.connect_timeout, timeout)
-
             def connected(future):
-                if self._loop_connect_timeout:
-                    self._loop.remove_timeout(self._loop_connect_timeout)
-                    self._loop_connect_timeout = None
-
-                if future._exc_info is not None:
+                if (hasattr(future, "_exc_info") and future._exc_info is not None) or (hasattr(future, "_exception") and future._exception is not None):
                     child_gr.throw(future.exception())
                 else:
                     self._sock = sock
                     child_gr.switch()
 
-            future = sock.connect(address)
-            self._loop.add_future(future, connected)
+            future = sock.connect(address, self.connect_timeout)
+            future.add_done_callback(connected)
             main.switch()
 
             self._rfile = self._sock
@@ -314,23 +162,23 @@ class Connection(_Connection):
         assert main is not None, "Execut must be running in child greenlet"
 
         def read_callback(future):
-            if future._exc_info is not None:
+            try:
+                data = future.result()
+                if len(data) == num_bytes:
+                    return child_gr.switch(data)
+
+                self._rbuffer_size = len(data) - num_bytes
+                self._rbuffer = StringIO(data)
+                return child_gr.switch(self._rbuffer.read(num_bytes))
+            except Exception as e:
                 self._force_close()
                 return child_gr.throw(err.OperationalError(
                     CR.CR_SERVER_LOST,
-                    "Lost connection to MySQL server during query (%s)" % (future.exception(),)))
-
-            data = future.result()
-            if len(data) == num_bytes:
-                return child_gr.switch(data)
-
-            self._rbuffer_size = len(data) - num_bytes
-            self._rbuffer = StringIO(data)
-            return child_gr.switch(self._rbuffer.read(num_bytes))
+                    "Lost connection to MySQL server during query (%s)" % (e,)))
         try:
             future = self._rfile.read_bytes(num_bytes)
-            self._loop.add_future(future, read_callback)
-        except (AttributeError, StreamClosedError) as e:
+            future.add_done_callback(read_callback)
+        except (AttributeError, platform.StreamClosedError) as e:
             self._force_close()
             raise err.OperationalError(
                 CR.CR_SERVER_LOST,
@@ -340,7 +188,7 @@ class Connection(_Connection):
     def _write_bytes(self, data):
         try:
             self._sock.write(data)
-        except (AttributeError, StreamClosedError) as e:
+        except (AttributeError, platform.StreamClosedError) as e:
             self._force_close()
             raise err.OperationalError(
                 CR.CR_SERVER_GONE_ERROR,
@@ -367,13 +215,14 @@ class Connection(_Connection):
             assert main is not None, "Execut must be running in child greenlet"
 
             def finish(future):
-                if future._exc_info is not None:
+                if (hasattr(future, "_exc_info") and future._exc_info is not None) \
+                        or (hasattr(future, "_exception") and future._exception is not None):
                     child_gr.throw(future.exception())
                 else:
                     child_gr.switch(future.result())
 
             future = self._sock.start_tls(False, self.ctx, server_hostname=self.host)
-            self._loop.add_future(future, finish)
+            future.add_done_callback(finish)
             self._rfile = self._sock = main.switch()
 
         data = data_init + self.user + b'\0'

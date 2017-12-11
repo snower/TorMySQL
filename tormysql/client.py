@@ -6,11 +6,11 @@
 MySQL asynchronous client.
 '''
 
-from tornado.ioloop import IOLoop
-from tornado.gen import Future
+from . import platform
 from .util import async_call_method
 from .connections import Connection
 from .cursor import Cursor
+from .util import py3
 
 
 class Client(object):
@@ -25,16 +25,17 @@ class Client(object):
             kwargs["cursorclass"] = kwargs["cursorclass"].__delegate_class__
 
     def connect(self):
-        future = Future()
+        future = platform.Future()
         def on_connected(connection_future):
-            if connection_future._exc_info is None:
-                future.set_result(self)
+            if (hasattr(connection_future, "_exc_info") and connection_future._exc_info is not None) \
+                    or (hasattr(connection_future, "_exception") and connection_future._exception is not None):
+                future.set_exception(connection_future.exception())
             else:
-                future.set_exc_info(connection_future.exc_info())
+                future.set_result(self)
         self._connection = Connection(defer_connect = True, *self._args, **self._kwargs)
         self._connection.set_close_callback(self.connection_close_callback)
         connection_future = async_call_method(self._connection.connect)
-        IOLoop.current().add_future(connection_future, on_connected)
+        connection_future.add_done_callback(on_connected)
         return future
 
     def connection_close_callback(self):
@@ -109,6 +110,16 @@ class Client(object):
     def __exit__(self, *exc_info):
         del exc_info
         self.close()
+
+    if py3:
+        exec("""
+async def __aenter__(self):
+    return self
+
+async def __aexit__(self, *exc_info):
+    del exc_info
+    await self.close()
+        """)
 
     def __str__(self):
         return str(self._connection)
