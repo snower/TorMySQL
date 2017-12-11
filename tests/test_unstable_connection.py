@@ -34,13 +34,7 @@ class TestThroughProxy(BaseTestCase):
         self.PARAMS['host'] = '127.0.0.1'
 
     def get_new_ioloop(self):
-        try:
-            import asyncio
-            from tornado.platform.asyncio import AsyncIOMainLoop
-            AsyncIOMainLoop().install()
-            return IOLoop.current()
-        except:
-            return IOLoop.current()
+        return IOLoop.current()
 
     def _close_proxy_sessions(self):
         for sock in self.proxy.SessionsList:
