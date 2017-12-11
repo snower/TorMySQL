@@ -22,11 +22,11 @@ def async_call_method(fun, *args, **kwargs):
                 ioloop.call_soon(future.set_result, result)
             else:
                 future.set_result(result)
-        except:
+        except Exception as e:
             if future._callbacks:
-                ioloop.call_soon(future.set_exc_info, sys.exc_info())
+                ioloop.call_soon(future.set_exception, e)
             else:
-                future.set_exc_info(sys.exc_info())
+                future.set_exception(e)
 
     child_gr = greenlet.greenlet(finish)
     child_gr.switch()

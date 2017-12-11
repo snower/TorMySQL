@@ -22,5 +22,8 @@ class TestCreateDB(BaseTestCase):
                     yield cursor.execute('SHOW TABLES')
                     data = cursor.fetchall()
                     self.assertEqual(data, tuple())
+
+                with connection.cursor() as cursor:
+                    yield cursor.execute("DROP DATABASE {0}".format(name))
             finally:
                 yield connection.rollback()

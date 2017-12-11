@@ -2,6 +2,7 @@
 # encoding: utf-8
 
 import os
+from tornado.ioloop import IOLoop
 from tormysql import ConnectionPool
 from tornado.testing import AsyncTestCase
 
@@ -30,3 +31,6 @@ class BaseTestCase(AsyncTestCase):
         super(BaseTestCase, self).tearDown()
         if not self.pool.closed:
             self.pool.close()
+
+    def get_new_ioloop(self):
+        return IOLoop.current()
