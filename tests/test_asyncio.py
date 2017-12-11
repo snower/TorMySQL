@@ -9,6 +9,7 @@ try:
     use_asyncio()
 except:
     pass
+from tormysql.cursor import SSCursor
 from tormysql.helpers import ConnectionPool
 from tornado.testing import AsyncTestCase
 from tornado.testing import gen_test
@@ -53,18 +54,18 @@ class TestAsyncioCase(AsyncTestCase):
         exec("""
 @gen_test
 async def test_execute(self):
-    cursor = await pool.execute("select * from test limit 1")
-    datas = cursor.fetchall())
+    cursor = await self.pool.execute("select * from test limit 1")
+    datas = cursor.fetchall()
     assert datas
 
-    async with await pool.Connection() as conn:
+    async with await self.pool.Connection() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute("SELECT * FROM test limit 10")
             datas = cursor.fetchall()
             assert datas
 
-    async with await pool.Connection() as conn:
-        async with conn.cursor(tormysql.SSCursor) as cursor:
+    async with await self.pool.Connection() as conn:
+        async with conn.cursor(SSCursor) as cursor:
             await cursor.execute("SELECT * FROM test limit 10000")
             async for data in cursor:
                 assert data
