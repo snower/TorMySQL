@@ -37,10 +37,17 @@ class IOStream(Protocol):
     def on_closed(self, exc_info = False):
         if self._connect_future:
             if exc_info:
-                self._connect_future.set_exception(exc_info[1])
+                self._connect_future.set_exception(exc_info[1] if isinstance(exc_info, tuple) else exc_info)
             else:
                 self._connect_future.set_exception(StreamClosedError('Connect Fail'))
             self._connect_future = None
+
+        if self._read_future:
+            if exc_info:
+                self._read_future.set_exception(exc_info[1] if isinstance(exc_info, tuple) else exc_info)
+            else:
+                self._read_future.set_exception(StreamClosedError('Connect Fail'))
+            self._read_future = None
 
         if self._close_callback:
             close_callback, self._close_callback = self._close_callback, None

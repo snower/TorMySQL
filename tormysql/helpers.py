@@ -153,10 +153,15 @@ async def executemany(self, query, params=None, cursor_cls=None):
     return cursor
 
 async def begin(self):
-    async with await self.Connection() as connection:
+    connection = await self.Connection()
+    try:
         await connection.begin()
-        transaction = Transaction(self, connection)
-        return transaction
+    except:
+        exc_info = sys.exc_info()
+        connection.close()
+        raise_exc_info(exc_info)
+    transaction = Transaction(self, connection)
+    return transaction
         """)
     else:
         @platform.coroutine

@@ -39,6 +39,8 @@ version_info = (0, 3, 6)
 
 def connect(*args, **kwargs):
     client = Client(*args, **kwargs)
+    from .platform import current_ioloop
+    current_ioloop()
     return client.connect()
 
 

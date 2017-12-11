@@ -1,16 +1,29 @@
 # encoding: utf-8
 import socket
 import os
+from tornado.ioloop import IOLoop
 from tormysql.pool import ConnectionNotFoundError
 from pymysql import OperationalError
 from tornado.testing import gen_test
 from tormysql import Connection, ConnectionPool
 from maproxy.proxyserver import ProxyServer
 from maproxy.session import SessionFactory
-from . import BaseTestCase
+from tests import BaseTestCase
 
 
 class TestThroughProxy(BaseTestCase):
+    PARAMS = dict(
+        host=os.getenv("MYSQL_HOST", "172.16.0.2"),
+        port=int(os.getenv("MYSQL_PORT", "3306")),
+        user=os.getenv("MYSQL_USER", "root"),
+        passwd=os.getenv("MYSQL_PASSWD", "123456"),
+        db=os.getenv("MYSQL_DB", "test"),
+        charset=os.getenv("MYSQL_CHARSET", "utf8"),
+        no_delay=True,
+        sql_mode="REAL_AS_FLOAT",
+        init_command="SET max_join_size=DEFAULT"
+    )
+
     def setUp(self):
         super(BaseTestCase, self).setUp()
         self.PARAMS = dict(self.PARAMS)
@@ -28,8 +41,18 @@ class TestThroughProxy(BaseTestCase):
             io_loop=self.io_loop,
         )
 
-        self.proxy.listen(self.port, address="127.0.0.1")
+        self.proxy.listen(self.port)
         self.PARAMS['port'] = self.port
+        self.PARAMS['host'] = '127.0.0.1'
+
+    def get_new_ioloop(self):
+        try:
+            import asyncio
+            from tornado.platform.asyncio import AsyncIOMainLoop
+            AsyncIOMainLoop().install()
+            return IOLoop.current()
+        except:
+            return IOLoop.current()
 
     def _close_proxy_sessions(self):
         for sock in self.proxy.SessionsList:
