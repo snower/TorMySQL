@@ -95,7 +95,7 @@ class TestThroughProxy(BaseTestCase):
         else:
             raise AssertionError("Unexpected normal situation")
         finally:
-            pool.close()
+            yield pool.close()
 
     @gen_test
     def test_pool_closing(self):
@@ -114,4 +114,4 @@ class TestThroughProxy(BaseTestCase):
         else:
             raise AssertionError("Unexpected normal situation")
         finally:
-            pool.close(10)
+            yield pool.close()

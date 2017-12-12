@@ -6,8 +6,10 @@ from __future__ import absolute_import, division, print_function
 
 try:
     import asyncio
+    from .asyncio import StreamClosedError
 except ImportError:
     asyncio = None
+    from tornado.iostream import StreamClosedError
 
 class IOLoop(object):
     _instance = None
@@ -23,17 +25,17 @@ class IOLoop(object):
         return getattr(self.ioloop, name)
 
 IOLoop._instance = IOLoop()
-Future, coroutine, IOStream, StreamClosedError = None, None, None, None
+Future, coroutine, IOStream = None, None, None
 current_ioloop = None
 is_reset = False
 
 def use_tornado(reset = True):
-    global Future, coroutine, IOStream, StreamClosedError, current_ioloop, is_reset
+    global Future, coroutine, IOStream, current_ioloop, is_reset
     if not reset and is_reset:
         return
     is_reset = reset
 
-    from .tornado import Future, coroutine, IOStream, StreamClosedError
+    from .tornado import Future, coroutine, IOStream
 
     def current_ioloop():
         if IOLoop._instance.ioloop is None:
@@ -47,12 +49,12 @@ def use_tornado(reset = True):
     return current_ioloop
 
 def use_asyncio(reset = True):
-    global Future, coroutine, IOStream, StreamClosedError, current_ioloop, is_reset
+    global Future, coroutine, IOStream, current_ioloop, is_reset
     if not reset and is_reset:
         return
     is_reset = reset
 
-    from .asyncio import Future, coroutine, IOStream, StreamClosedError
+    from .asyncio import Future, coroutine, IOStream
 
     def current_ioloop():
         if IOLoop._instance.ioloop is None:

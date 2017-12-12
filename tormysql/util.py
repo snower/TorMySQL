@@ -18,10 +18,15 @@ def async_call_method(fun, *args, **kwargs):
     def finish():
         try:
             result = fun(*args, **kwargs)
+            if future._callbacks:
+                ioloop.call_soon(future.set_result, result)
+            else:
+                future.set_result(result)
         except Exception as e:
-            ioloop.call_soon(future.set_exception, e)
-        else:
-            ioloop.call_soon(future.set_result, result)
+            if future._callbacks:
+                ioloop.call_soon(future.set_exception, e)
+            else:
+                future.set_exception(e)
 
     child_gr = greenlet.greenlet(finish)
     child_gr.switch()

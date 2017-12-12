@@ -9,8 +9,13 @@ from asyncio import coroutine, Future, events, Protocol, ensure_future
 def current_ioloop():
     return events.get_event_loop()
 
-class StreamClosedError(IOError):
-    pass
+try:
+    from tornado.iostream import StreamClosedError
+except ImportError:
+    class StreamClosedError(IOError):
+        def __init__(self, real_error=None):
+            super(StreamClosedError, self).__init__('Stream is closed')
+            self.real_error = real_error
 
 class IOStream(Protocol):
     def __init__(self, address, bind_address):
@@ -37,16 +42,16 @@ class IOStream(Protocol):
     def on_closed(self, exc_info = False):
         if self._connect_future:
             if exc_info:
-                self._loop.call_soon(self._connect_future.set_exception, exc_info[1] if isinstance(exc_info, tuple) else exc_info)
+                self._connect_future.set_exception(exc_info[1] if isinstance(exc_info, tuple) else exc_info)
             else:
-                self._loop.call_soon(self._connect_future.set_exception, StreamClosedError('Connect Fail'))
+                self._connect_future.set_exception(StreamClosedError(None))
             self._connect_future = None
 
         if self._read_future:
             if exc_info:
-                self._loop.call_soon(self._read_future.set_exception, exc_info[1] if isinstance(exc_info, tuple) else exc_info)
+                self._read_future.set_exception(exc_info[1] if isinstance(exc_info, tuple) else exc_info)
             else:
-                self._loop.call_soon(self._read_future.set_exception, StreamClosedError('Connect Fail'))
+                self._read_future.set_exception(StreamClosedError(None))
             self._read_future = None
 
         if self._close_callback:
@@ -72,6 +77,8 @@ class IOStream(Protocol):
             self._transport, _ = yield from self._loop.create_connection(lambda : self, address[0], address[1], sock=self._sock, server_hostname=server_hostname, local_addr=self._bind_address)
 
     def connect(self, address, connect_timeout = 0, server_hostname = None):
+        assert self._connect_future is None, 'Already connecting'
+
         self._loop = current_ioloop()
         future = self._connect_future = Future(loop=self._loop)
         if connect_timeout:
@@ -88,8 +95,9 @@ class IOStream(Protocol):
                 self._loop_connect_timeout = None
 
             if connect_future._exception is not None:
-                future.set_exception(connect_future.exception())
+                self.on_closed(connect_future.exception())
             else:
+                self._connect_future = None
                 future.set_result(connect_future.result())
             self._connect_future = None
 
@@ -100,9 +108,9 @@ class IOStream(Protocol):
     def connection_made(self, transport):
         self._transport = transport
         if self._connect_future is None:
-            self.close((None, StreamClosedError('Already Closed'), None))
+            transport.close()
         else:
-            self._transport.set_write_buffer_limits(0)
+            self._transport.set_write_buffer_limits(1024 * 1024 * 1024)
 
     def data_received(self, data):
         if self._read_buffer_size:
@@ -122,12 +130,12 @@ class IOStream(Protocol):
         self._transport = None
 
     def eof_received(self):
-        return True
+        return False
 
     def read_bytes(self, num_bytes):
         assert self._read_future is None, "Already reading"
         if self._closed:
-            raise StreamClosedError('Already Closed')
+            raise StreamClosedError(IOError('Already Closed'))
 
         future = self._read_future = Future()
         self._read_bytes = num_bytes
@@ -140,8 +148,7 @@ class IOStream(Protocol):
         return future
 
     def write(self, data):
-        assert isinstance(data, (bytes, bytearray))
         if self._closed:
-            raise StreamClosedError('Already Closed')
+            raise StreamClosedError(IOError('Already Closed'))
 
         self._transport.write(data)

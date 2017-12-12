@@ -178,7 +178,7 @@ class Connection(_Connection):
         try:
             future = self._rfile.read_bytes(num_bytes)
             future.add_done_callback(read_callback)
-        except (AttributeError, platform.StreamClosedError) as e:
+        except (AttributeError, IOError) as e:
             self._force_close()
             raise err.OperationalError(
                 CR.CR_SERVER_LOST,
@@ -188,7 +188,7 @@ class Connection(_Connection):
     def _write_bytes(self, data):
         try:
             self._sock.write(data)
-        except (AttributeError, platform.StreamClosedError) as e:
+        except (AttributeError, IOError) as e:
             self._force_close()
             raise err.OperationalError(
                 CR.CR_SERVER_GONE_ERROR,
