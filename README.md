@@ -16,7 +16,7 @@ tormysql - presents a Tornado Future-based API and greenlet for non-blocking acc
 pip install TorMySQL
 ```
 
-# Examples
+# Used Tornado
 
 ## example pool
 
@@ -97,6 +97,83 @@ def test():
 ioloop = IOLoop.instance()
 ioloop.run_sync(test)
 ```
+
+# Used asyncio alone
+
+## example pool
+
+```
+from asyncio import events
+import tormysql
+
+pool = tormysql.ConnectionPool(
+   max_connections = 20, #max open connections
+   idle_seconds = 7200, #conntion idle timeout time, 0 is not timeout
+   wait_connection_timeout = 3, #wait connection timeout
+   host = "127.0.0.1",
+   user = "root",
+   passwd = "TEST",
+   db = "test",
+   charset = "utf8"
+)
+
+async def test():
+   async with await pool.Connection() as conn:
+       try:
+           async with conn.cursor() as cursor:
+               await cursor.execute("INSERT INTO test(id) VALUES(1)")
+       except:
+           await conn.rollback()
+       else:
+           await conn.commit()
+
+       async with conn.cursor() as cursor:
+           await cursor.execute("SELECT * FROM test")
+           datas = cursor.fetchall()
+
+   print(datas)
+
+   await pool.close()
+
+ioloop = events.get_event_loop()
+ioloop.run_until_complete(test)
+```
+
+## example helpers
+
+```
+from asyncio import events
+import tormysql
+
+pool = tormysql.helpers.ConnectionPool(
+   max_connections = 20, #max open connections
+   idle_seconds = 7200, #conntion idle timeout time, 0 is not timeout
+   wait_connection_timeout = 3, #wait connection timeout
+   host = "127.0.0.1",
+   user = "root",
+   passwd = "TEST",
+   db = "test",
+   charset = "utf8"
+)
+
+async def test():
+   async with await pool.begin() as tx:
+       await tx.execute("INSERT INTO test(id) VALUES(1)")
+
+   cursor = await pool.execute("SELECT * FROM test")
+   datas = cursor.fetchall()
+
+   print(datas)
+
+   await pool.close()
+
+ioloop = events.get_event_loop()
+ioloop.run_until_complete(test)
+```
+
+# Resources
+
+You can read [PyMySQL Documentation](http://pymysql.readthedocs.io/) online for more information.
 
 # License
 
