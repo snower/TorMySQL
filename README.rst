@@ -3,15 +3,18 @@ TorMySQL
 
 |Build Status|
 
-Tornado asynchronous MySQL Driver.
+The highest performance asynchronous MySQL driver.
 
 PyPI page: https://pypi.python.org/pypi/tormysql
 
 About
 =====
 
-tormysql - presents a Tornado Future-based API and greenlet for
-non-blocking access to MySQL.
+Presents a Future-based API and greenlet for non-blocking access to
+MySQL.
+
+Support both `tornado <https://github.com/tornadoweb/tornado>`__ and
+`asyncio <https://docs.python.org/3/library/asyncio.html>`__.
 
 Installation
 ============
