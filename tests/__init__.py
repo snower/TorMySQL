@@ -28,9 +28,9 @@ class BaseTestCase(AsyncTestCase):
         )
 
     def tearDown(self):
-        super(BaseTestCase, self).tearDown()
         if not self.pool.closed:
             self.pool.close()
+        super(BaseTestCase, self).tearDown()
 
     def get_new_ioloop(self):
         return IOLoop.current()

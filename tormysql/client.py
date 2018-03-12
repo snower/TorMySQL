@@ -48,7 +48,7 @@ class Client(object):
         self._close_callback = callback
 
     def close(self):
-        if self._closed:
+        if self._connection._closed:
             return
         return async_call_method(self._connection.close)
 

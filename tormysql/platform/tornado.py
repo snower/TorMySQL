@@ -29,6 +29,10 @@ class IOStream(BaseIOStream):
 
         super(IOStream, self).__init__(socket, *args, **kwargs)
 
+        self._write_buffer = bytearray()
+        self._write_buffer_pos = 0
+        self._write_buffer_size = 0
+
     def init_socket(self, address, bind_address):
         if not isinstance(address, tuple):
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
