@@ -8,14 +8,17 @@ try:
     from tormysql.platform import use_asyncio
     use_asyncio()
 except:
-    pass
+    asyncio = None
+
 from tornado.ioloop import IOLoop
 from tormysql.cursor import SSCursor
 from tormysql.helpers import ConnectionPool
 from tornado.testing import AsyncTestCase
 from tornado.testing import gen_test
+from tornado.test.util import unittest
 from tormysql.util import py3
 
+@unittest.skipIf(asyncio is None, "asyncio module not present")
 class TestAsyncioCase(AsyncTestCase):
     PARAMS = dict(
         host=os.getenv("MYSQL_HOST", "127.0.0.1"),
@@ -40,15 +43,6 @@ class TestAsyncioCase(AsyncTestCase):
     def tearDown(self):
         super(TestAsyncioCase, self).tearDown()
         self.pool.close()
-
-    def get_new_ioloop(self):
-        try:
-            import asyncio
-            from tornado.platform.asyncio import AsyncIOMainLoop
-            AsyncIOMainLoop().install()
-            return IOLoop.current()
-        except:
-            return IOLoop.current()
 
     if py3:
         exec("""

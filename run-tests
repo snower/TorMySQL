@@ -2,7 +2,11 @@
 
 export LOG_LEVEL=debug
 
-exec nosetests \
+for file in ./tests/*.py
+do
+    echo $file
+    exec nosetests $file \
         --logging-format='%(asctime)s [%(name)s] %(levelname)-6s %(message)s' \
         --with-coverage \
         --cover-package=tormysql
+done

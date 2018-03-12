@@ -25,7 +25,9 @@ class Cursor(object):
 
     def __del__(self):
         if self._cursor:
-            self.close()
+            try:
+                self.close()
+            except: pass
 
     def close(self):
         if self._cursor.connection is None or not self._cursor._result or not self._cursor._result.has_next:

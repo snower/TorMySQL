@@ -3,6 +3,7 @@
 # create by: snower
 
 import os
+from tornado import gen
 from tornado.ioloop import IOLoop
 from tormysql.helpers import ConnectionPool
 from tornado.testing import AsyncTestCase
@@ -33,21 +34,23 @@ class TestHelpersCase(AsyncTestCase):
         super(TestHelpersCase, self).tearDown()
         self.pool.close()
 
-    def get_new_ioloop(self):
-        return IOLoop.current()
-
-    @gen_test
-    def test_execute(self):
+    @gen.coroutine
+    def _execute_test_execute(self):
         sql = "select 1 as test"
         cursor = yield self.pool.execute(sql)
         result = cursor.fetchone()
         self.assertTrue(result == (1,))
 
-    @gen_test
-    def test_tx(self):
+    @gen.coroutine
+    def _execute_test_tx(self):
         sql = "select 1 as test"
         tx = yield self.pool.begin()
         cursor = yield tx.execute(sql)
         yield tx.commit()
         result = cursor.fetchone()
         self.assertTrue(result == (1,))
+
+    @gen_test
+    def test(self):
+        yield self._execute_test_execute()
+        yield self._execute_test_tx()

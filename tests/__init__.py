@@ -31,6 +31,3 @@ class BaseTestCase(AsyncTestCase):
         if not self.pool.closed:
             self.pool.close()
         super(BaseTestCase, self).tearDown()
-
-    def get_new_ioloop(self):
-        return IOLoop.current()

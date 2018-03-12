@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # encoding: utf-8
+
+from tornado import gen
 from tornado.testing import gen_test
 from . import BaseTestCase
 
@@ -12,8 +14,8 @@ class TestLocale(BaseTestCase):
         'utf8mb4', 'cp1251', 'cp1256', 'cp1257', 'cp932'
     ]
 
-    @gen_test
-    def test1(self):
+    @gen.coroutine
+    def _execute_test1(self):
         for charset in self.CHARSETS:
             with (yield self.pool.Connection()) as connection:
                 yield connection.set_charset(charset)
@@ -23,8 +25,13 @@ class TestLocale(BaseTestCase):
                     data = cursor.fetchone()
                     self.assertEqual(data[1], charset)
 
-    @gen_test
-    def test_escape(self):
+    @gen.coroutine
+    def _execute_test_escape(self):
         with (yield self.pool.Connection()) as connection:
             s = connection.escape(r'"')
             self.assertEqual(s, '\'\\"\'')
+
+    @gen_test
+    def test(self):
+        yield self._execute_test1()
+        yield self._execute_test_escape()
