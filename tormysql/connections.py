@@ -221,7 +221,7 @@ class Connection(_Connection):
                 else:
                     child_gr.switch(future.result())
 
-            future = self._sock.start_tls(False, self.ctx, server_hostname=self.host)
+            future = self._sock.start_tls(False, self.ctx, server_hostname=self.host, connect_timeout=self.connect_timeout)
             future.add_done_callback(finish)
             self._rfile = self._sock = main.switch()
 

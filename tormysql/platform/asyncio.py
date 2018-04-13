@@ -26,6 +26,7 @@ class IOStream(Protocol):
         self._transport = None
         self._close_callback = None
         self._connect_future = None
+        self._connect_ssl_future = None
         self._read_future = None
         self._read_bytes = 0
         self._closed = False
@@ -46,6 +47,13 @@ class IOStream(Protocol):
             else:
                 self._connect_future.set_exception(StreamClosedError(None))
             self._connect_future = None
+
+        if self._connect_ssl_future:
+            if exc_info:
+                self._connect_ssl_future.set_exception(exc_info[1] if isinstance(exc_info, tuple) else exc_info)
+            else:
+                self._connect_ssl_future.set_exception(StreamClosedError(None))
+            self._connect_ssl_future = None
 
         if self._read_future:
             if exc_info:
@@ -82,12 +90,12 @@ class IOStream(Protocol):
         self._loop = current_ioloop()
         future = self._connect_future = Future(loop=self._loop)
         if connect_timeout:
-            def timeout():
+            def on_timeout():
                 self._loop_connect_timeout = None
                 if self._connect_future:
                     self.close((None, IOError("Connect timeout"), None))
 
-            self._loop_connect_timeout = self._loop.call_later(connect_timeout, connect_timeout)
+            self._loop_connect_timeout = self._loop.call_later(connect_timeout, on_timeout)
 
         def connected(connect_future):
             if self._loop_connect_timeout:
@@ -96,10 +104,10 @@ class IOStream(Protocol):
 
             if connect_future._exception is not None:
                 self.on_closed(connect_future.exception())
+                self._connect_future = None
             else:
                 self._connect_future = None
                 future.set_result(connect_future.result())
-            self._connect_future = None
 
         connect_future = ensure_future(self._connect(address, server_hostname))
         connect_future.add_done_callback(connected)
@@ -107,7 +115,7 @@ class IOStream(Protocol):
 
     def connection_made(self, transport):
         self._transport = transport
-        if self._connect_future is None:
+        if self._connect_future is None and self._connect_ssl_future is None:
             transport.close()
         else:
             self._transport.set_write_buffer_limits(1024 * 1024 * 1024)
@@ -152,3 +160,39 @@ class IOStream(Protocol):
             raise StreamClosedError(IOError('Already Closed'))
 
         self._transport.write(data)
+
+    def start_tls(self, server_side, ssl_options=None, server_hostname=None, connect_timeout=None):
+        if not self._transport or self._read_future:
+            raise ValueError("IOStream is not idle; cannot convert to SSL")
+
+        self._connect_ssl_future = connect_ssl_future = Future(loop=self._loop)
+        waiter = Future(loop=self._loop)
+
+        def on_connected(future):
+            if self._loop_connect_timeout:
+                self._loop_connect_timeout.cancel()
+                self._loop_connect_timeout = None
+
+            if connect_ssl_future._exception is not None:
+                self.on_closed(future.exception())
+                self._connect_ssl_future = None
+            else:
+                self._connect_ssl_future = None
+                connect_ssl_future.set_result(self)
+        waiter.add_done_callback(on_connected)
+
+        if connect_timeout:
+            def on_timeout():
+                self._loop_connect_timeout = None
+                if not waiter.done():
+                    self.close((None, IOError("Connect timeout"), None))
+
+            self._loop_connect_timeout = self._loop.call_later(connect_timeout, on_timeout)
+
+        self._transport.pause_reading()
+        sock, self._transport._sock = self._transport._sock, None
+        self._transport = self._loop._make_ssl_transport(
+            sock, self, ssl_options, waiter,
+            server_side=False, server_hostname=server_hostname)
+
+        return connect_ssl_future
