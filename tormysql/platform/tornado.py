@@ -356,3 +356,6 @@ class SSLIOStream(IOStream, BaseSSLIOStream):
             self.io_loop.update_handler(self.fileno(), self._state)
 
         BaseSSLIOStream._run_ssl_connect_callback(self)
+
+    def makefile(self, mode):
+        return self

@@ -196,3 +196,6 @@ class IOStream(Protocol):
             server_side=False, server_hostname=server_hostname)
 
         return connect_ssl_future
+
+    def makefile(self, mode):
+        return self

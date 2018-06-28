@@ -21,18 +21,23 @@ else:
     StringIO = cStringIO.StringIO
 
 class SSLCtx(object):
+    _ctx = None
+    _connection = None
+
     def __init__(self, connection, ctx):
-        self.__ctx = ctx
-        self.__connection = connection
+        self._ctx = ctx
+        self._connection = connection
 
     def __getattr__(self, item):
-        return getattr(self.__ctx, item)
+        return getattr(self._ctx, item)
 
     def __setattr__(self, key, value):
-        return setattr(self, key, value)
+        if not self or not self._ctx or not self._connection:
+            return super(SSLCtx, self).__setattr__(key, value)
+        return setattr(self._ctx, key, value)
 
     def __getitem__(self, item):
-        return self.__ctx[item]
+        return self._ctx[item]
 
     def wrap_socket(self, sock, server_side=False,
                     do_handshake_on_connect=True,
@@ -50,7 +55,7 @@ class SSLCtx(object):
             else:
                 child_gr.switch(future.result())
 
-        future = sock.start_tls(False, self.__ctx, server_hostname=server_hostname, connect_timeout=self.__connection.connect_timeout)
+        future = sock.start_tls(False, self._ctx, server_hostname=server_hostname, connect_timeout=self._connection.connect_timeout)
         future.add_done_callback(finish)
         return main.switch()
 
@@ -95,7 +100,7 @@ class Connection(_Connection):
     __del__ = _force_close
 
     def _create_ssl_ctx(self, sslp):
-        ctx = super(self, Connection)._create_ssl_ctx(sslp)
+        ctx = super(Connection, self)._create_ssl_ctx(sslp)
         return SSLCtx(self, ctx)
 
     def connect(self):
