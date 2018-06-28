@@ -17,7 +17,6 @@ class TestHelpersCase(AsyncTestCase):
         passwd=os.getenv("MYSQL_PASSWD", ""),
         db=os.getenv("MYSQL_DB", "test"),
         charset=os.getenv("MYSQL_CHARSET", "utf8"),
-        no_delay=True,
         sql_mode="REAL_AS_FLOAT",
         init_command="SET max_join_size=DEFAULT"
     )

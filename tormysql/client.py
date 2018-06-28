@@ -50,6 +50,8 @@ class Client(object):
     def close(self):
         if self._closed:
             return
+        if not self._connection:
+            return
         return async_call_method(self._connection.close)
 
     def autocommit(self, value):
@@ -109,18 +111,19 @@ class Client(object):
     def __enter__(self):
         return self.cursor()
 
-    def __exit__(self, *exc_info):
-        del exc_info
-        self.close()
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
 
     if py3:
         exec("""
 async def __aenter__(self):
-    return self
+    return self.cursor()
 
-async def __aexit__(self, *exc_info):
-    del exc_info
-    await self.close()
+async def __aexit__(self, exc_type, exc_val, exc_tb):
+    if exc_type:
+        await self.rollback()
+    else:
+        await self.commit()
         """)
 
     def __str__(self):

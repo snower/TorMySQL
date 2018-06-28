@@ -52,22 +52,35 @@ async def executemany(self, query, params=None, cursor_cls=None):
 
 async def commit(self):
     self._ensure_conn()
-    await self._connection.commit()
-    self._connection.close()
-    self._connection = None
+    try:
+        await self._connection.commit()
+    except:
+        exc_info = sys.exc_info()
+        self._connection.close(True)
+        raise_exc_info(exc_info)
+    else:
+        self._connection.close()
+    finally:
+        self._connection = None
 
 async def rollback(self):
     self._ensure_conn()
-    await self._connection.rollback()
-    self._connection.close()
-    self._connection = None
+    try:
+        await self._connection.rollback()
+    except:
+        exc_info = sys.exc_info()
+        self._connection.close(True)
+        raise_exc_info(exc_info)
+    else:
+        self._connection.close()
+    finally:
+        self._connection = None
 
 async def __aenter__(self):
     return self
 
-async def __aexit__(self, *exc_info):
-    del exc_info
-    if exc_info:
+async def __aexit__(self, exc_type, exc_val, exc_tb):
+    if exc_type:
         await self.rollback()
     else:
         await self.commit()
@@ -96,16 +109,37 @@ async def __aexit__(self, *exc_info):
         @platform.coroutine
         def commit(self):
             self._ensure_conn()
-            yield self._connection.commit()
-            self._connection.close()
-            self._connection = None
+            try:
+                yield self._connection.commit()
+            except:
+                exc_info = sys.exc_info()
+                self._connection.close(True)
+                raise_exc_info(exc_info)
+            else:
+                self._connection.close()
+            finally:
+                self._connection = None
 
         @platform.coroutine
         def rollback(self):
             self._ensure_conn()
-            yield self._connection.rollback()
-            self._connection.close()
-            self._connection = None
+            try:
+                yield self._connection.rollback()
+            except:
+                exc_info = sys.exc_info()
+                self._connection.close(True)
+                raise_exc_info(exc_info)
+            else:
+                self._connection.close()
+            finally:
+                self._connection = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._connection:
+            log.get_log().warning("Transaction has not committed or rollbacked %s.", self._connection)
 
     def __del__(self):
         if self._connection:
@@ -122,35 +156,15 @@ class ConnectionPool(BaseConnectionPool):
         exec("""
 async def execute(self, query, params=None, cursor_cls=None):
     async with await self.Connection() as connection:
-        cursor = connection.cursor(cursor_cls)
-        try:
+        async with connection.cursor(cursor_cls) as cursor:
             await cursor.execute(query, params)
-            if not connection._connection.autocommit_mode:
-                await connection.commit()
-        except:
-            exc_info = sys.exc_info()
-            if not connection._connection.autocommit_mode:
-                await connection.rollback()
-            raise_exc_info(exc_info)
-        finally:
-            await cursor.close()
-    return cursor
+            return cursor
 
 async def executemany(self, query, params=None, cursor_cls=None):
     async with await self.Connection() as connection:
-        cursor = connection.cursor(cursor_cls)
-        try:
+        async with connection.cursor(cursor_cls) as cursor:
             await cursor.executemany(query, params)
-            if not connection._connection.autocommit_mode:
-                await connection.commit()
-        except:
-            exc_info = sys.exc_info()
-            if not connection._connection.autocommit_mode:
-                await connection.rollback()
-            raise_exc_info(exc_info)
-        finally:
-            await cursor.close()
-    return cursor
+            return cursor
 
 async def begin(self):
     connection = await self.Connection()

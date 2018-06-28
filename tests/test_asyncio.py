@@ -27,7 +27,6 @@ class TestAsyncioCase(AsyncTestCase):
         passwd=os.getenv("MYSQL_PASSWD", ""),
         db=os.getenv("MYSQL_DB", "test"),
         charset=os.getenv("MYSQL_CHARSET", "utf8"),
-        no_delay=True,
         sql_mode="REAL_AS_FLOAT",
         init_command="SET max_join_size=DEFAULT"
     )
@@ -51,6 +50,11 @@ async def test_execute(self):
     cursor = await self.pool.execute("select * from test limit 1")
     datas = cursor.fetchall()
     assert datas
+
+    async with await self.pool.begin() as transaction:
+        cursor = await transaction.execute("select * from test limit 1")
+        datas = cursor.fetchall()
+        assert datas
 
     async with await self.pool.Connection() as conn:
         async with conn.cursor() as cursor:

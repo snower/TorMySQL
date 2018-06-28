@@ -74,9 +74,8 @@ class Cursor(object):
     def __enter__(self):
         return self
 
-    def __exit__(self, *exc_info):
+    def __exit__(self, exc_type, exc_val, exc_tb):
         "WARING: if cursor not read all data, the connection next query is error"
-        del exc_info
         if self._cursor._result and self._cursor._result.has_next:
             raise CursorNotReadAllDataError("If cursor not read all data, the connection next query is error.")
         self.close()
@@ -89,8 +88,7 @@ async def __aiter__(self):
 async def __aenter__(self):
     return self
 
-async def __aexit__(self, *exc_info):
-    del exc_info
+async def __aexit__(self, exc_type, exc_val, exc_tb):
     await self.close()
         """)
 
@@ -140,7 +138,7 @@ class SSCursor(Cursor):
     def __enter__(self):
         raise AttributeError("SSCursor not support with statement")
 
-    def __exit__(self, *exc_info):
+    def __exit__(self, exc_type, exc_val, exc_tb):
         raise AttributeError("SSCursor not support with statement")
 
     if py3:
@@ -157,8 +155,7 @@ async def __anext__(self):
 async def __aenter__(self):
     return self
 
-async def __aexit__(self, *exc_info):
-    del exc_info
+async def __aexit__(self, exc_type, exc_val, exc_tb):
     await self.close()
         """)
 

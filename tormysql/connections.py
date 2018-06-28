@@ -9,10 +9,8 @@ import sys
 import struct
 import traceback
 from pymysql import err
-from pymysql.charset import charset_by_name
-from pymysql.constants import COMMAND, CLIENT, CR
-from pymysql.connections import Connection as _Connection, lenenc_int, text_type
-from pymysql.connections import _scramble, _scramble_323
+from pymysql.constants import CR
+from pymysql.connections import Connection as _Connection
 from . import platform
 
 if sys.version_info[0] >= 3:
@@ -21,6 +19,40 @@ if sys.version_info[0] >= 3:
 else:
     import cStringIO
     StringIO = cStringIO.StringIO
+
+class SSLCtx(object):
+    def __init__(self, connection, ctx):
+        self.__ctx = ctx
+        self.__connection = connection
+
+    def __getattr__(self, item):
+        return getattr(self.__ctx, item)
+
+    def __setattr__(self, key, value):
+        return setattr(self, key, value)
+
+    def __getitem__(self, item):
+        return self.__ctx[item]
+
+    def wrap_socket(self, sock, server_side=False,
+                    do_handshake_on_connect=True,
+                    suppress_ragged_eofs=True,
+                    server_hostname=None, session=None):
+
+        child_gr = greenlet.getcurrent()
+        main = child_gr.parent
+        assert main is not None, "Execut must be running in child greenlet"
+
+        def finish(future):
+            if (hasattr(future, "_exc_info") and future._exc_info is not None) \
+                    or (hasattr(future, "_exception") and future._exception is not None):
+                child_gr.throw(future.exception())
+            else:
+                child_gr.switch(future.result())
+
+        future = sock.start_tls(False, self.__ctx, server_hostname=server_hostname, connect_timeout=self.__connection.connect_timeout)
+        future.add_done_callback(finish)
+        return main.switch()
 
 class Connection(_Connection):
     def __init__(self, *args, **kwargs):
@@ -43,24 +75,7 @@ class Connection(_Connection):
             self._sock.set_close_callback(None)
             self._sock = None
             self._rfile = None
-
-    def close(self):
-        if self._closed:
-            raise err.Error("Already closed")
-        self._closed = True
-        if self._sock is None:
-            return
-
-        send_data = struct.pack('<iB', 1, COMMAND.COM_QUIT)
-        try:
-            self._write_bytes(send_data)
-        except Exception:
-            pass
-        finally:
-            sock = self._sock
-            self._sock = None
-            self._rfile = None
-            sock.close()
+            self.ctx = None
 
     @property
     def open(self):
@@ -69,21 +84,28 @@ class Connection(_Connection):
     def _force_close(self):
         if self._sock:
             try:
-                self._sock.close()
+                sock = self._sock
+                self._sock = None
+                self._rfile = None
+                sock.close()
             except:
                 pass
-        self._sock = None
-        self._rfile = None
+        self.ctx = None
 
     __del__ = _force_close
+
+    def _create_ssl_ctx(self, sslp):
+        ctx = super(self, Connection)._create_ssl_ctx(sslp)
+        return SSLCtx(self, ctx)
 
     def connect(self):
         self._closed = False
         self._loop = platform.current_ioloop()
         try:
-            if self.unix_socket and self.host in ('localhost', '127.0.0.1'):
+            if self.unix_socket:
                 self.host_info = "Localhost via UNIX socket"
                 address = self.unix_socket
+                self._secure = True
             else:
                 self.host_info = "socket %s:%d" % (self.host, self.port)
                 address = (self.host, self.port)
@@ -95,7 +117,8 @@ class Connection(_Connection):
             assert main is not None, "Execut must be running in child greenlet"
 
             def connected(future):
-                if (hasattr(future, "_exc_info") and future._exc_info is not None) or (hasattr(future, "_exception") and future._exception is not None):
+                if (hasattr(future, "_exc_info") and future._exc_info is not None) \
+                        or (hasattr(future, "_exception") and future._exception is not None):
                     child_gr.throw(future.exception())
                 else:
                     self._sock = sock
@@ -141,14 +164,14 @@ class Connection(_Connection):
             return self._rbuffer.read(num_bytes)
 
         if self._rbuffer_size > 0:
-            self._rfile._read_buffer = self._rbuffer.read() + self._rfile._read_buffer
-            self._rfile._read_buffer_size += self._rbuffer_size
+            self._sock._read_buffer = self._rbuffer.read() + self._sock._read_buffer
+            self._sock._read_buffer_size += self._rbuffer_size
             self._rbuffer_size = 0
 
-        if num_bytes <= self._rfile._read_buffer_size:
-            data, data_len = self._rfile._read_buffer, self._rfile._read_buffer_size
-            self._rfile._read_buffer = bytearray()
-            self._rfile._read_buffer_size = 0
+        if num_bytes <= self._sock._read_buffer_size:
+            data, data_len = self._sock._read_buffer, self._sock._read_buffer_size
+            self._sock._read_buffer = bytearray()
+            self._sock._read_buffer_size = 0
 
             if data_len == num_bytes:
                 return data
@@ -176,7 +199,7 @@ class Connection(_Connection):
                     CR.CR_SERVER_LOST,
                     "Lost connection to MySQL server during query (%s)" % (e,)))
         try:
-            future = self._rfile.read_bytes(num_bytes)
+            future = self._sock.read_bytes(num_bytes)
             future.add_done_callback(read_callback)
         except (AttributeError, IOError) as e:
             self._force_close()
@@ -195,76 +218,9 @@ class Connection(_Connection):
                 "MySQL server has gone away (%r)" % (e,))
 
     def _request_authentication(self):
-        if int(self.server_version.split('.', 1)[0]) >= 5:
-            self.client_flag |= CLIENT.MULTI_RESULTS
+        super(Connection, self)._request_authentication()
 
-        if self.user is None:
-            raise ValueError("Did not specify a username")
-
-        charset_id = charset_by_name(self.charset).id
-        if isinstance(self.user, text_type):
-            self.user = self.user.encode(self.encoding)
-
-        data_init = struct.pack('<iIB23s', self.client_flag, 1, charset_id, b'')
-
-        if self.ssl and self.server_capabilities & CLIENT.SSL:
-            self.write_packet(data_init)
-
-            child_gr = greenlet.getcurrent()
-            main = child_gr.parent
-            assert main is not None, "Execut must be running in child greenlet"
-
-            def finish(future):
-                if (hasattr(future, "_exc_info") and future._exc_info is not None) \
-                        or (hasattr(future, "_exception") and future._exception is not None):
-                    child_gr.throw(future.exception())
-                else:
-                    child_gr.switch(future.result())
-
-            future = self._sock.start_tls(False, self.ctx, server_hostname=self.host, connect_timeout=self.connect_timeout)
-            future.add_done_callback(finish)
-            self._rfile = self._sock = main.switch()
-
-        data = data_init + self.user + b'\0'
-
-        authresp = b''
-        if self._auth_plugin_name in ('', 'mysql_native_password'):
-            authresp = _scramble(self.password.encode('latin1'), self.salt)
-
-        if self.server_capabilities & CLIENT.PLUGIN_AUTH_LENENC_CLIENT_DATA:
-            data += lenenc_int(len(authresp)) + authresp
-        elif self.server_capabilities & CLIENT.SECURE_CONNECTION:
-            data += struct.pack('B', len(authresp)) + authresp
-        else:  # pragma: no cover - not testing against servers without secure auth (>=5.0)
-            data += authresp + b'\0'
-
-        if self.db and self.server_capabilities & CLIENT.CONNECT_WITH_DB:
-            if isinstance(self.db, text_type):
-                self.db = self.db.encode(self.encoding)
-            data += self.db + b'\0'
-
-        if self.server_capabilities & CLIENT.PLUGIN_AUTH:
-            name = self._auth_plugin_name
-            if isinstance(name, text_type):
-                name = name.encode('ascii')
-            data += name + b'\0'
-
-        self.write_packet(data)
-        auth_packet = self._read_packet()
-
-        # if authentication method isn't accepted the first byte
-        # will have the octet 254
-        if auth_packet.is_auth_switch_request():
-            # https://dev.mysql.com/doc/internals/en/connection-phase-packets.html#packet-Protocol::AuthSwitchRequest
-            auth_packet.read_uint8()  # 0xfe packet identifier
-            plugin_name = auth_packet.read_string()
-            if self.server_capabilities & CLIENT.PLUGIN_AUTH and plugin_name is not None:
-                auth_packet = self._process_auth(plugin_name, auth_packet)
-            else:
-                # send legacy handshake
-                data = _scramble_323(self.password.encode('latin1'), self.salt) + b'\0'
-                self.write_packet(data)
-                auth_packet = self._read_packet()
+        self._rfile = self._sock
 
     def __str__(self):
         return "%s %s" % (super(Connection, self).__str__(),
