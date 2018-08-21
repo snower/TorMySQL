@@ -179,7 +179,7 @@ class Connection(_Connection):
             self._sock._read_buffer_size = 0
 
             if data_len == num_bytes:
-                return data
+                return bytes(data)
 
             self._rbuffer_size = data_len - num_bytes
             self._rbuffer = StringIO(data)
@@ -193,7 +193,7 @@ class Connection(_Connection):
             try:
                 data = future.result()
                 if len(data) == num_bytes:
-                    return child_gr.switch(data)
+                    return child_gr.switch(bytes(data))
 
                 self._rbuffer_size = len(data) - num_bytes
                 self._rbuffer = StringIO(data)
