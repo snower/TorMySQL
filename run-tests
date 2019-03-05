@@ -1,6 +1,7 @@
 #!/bin/bash
 
 export LOG_LEVEL=debug
+STATUS=0
 
 for file in ./tests/test_*.py
 do
@@ -9,4 +10,8 @@ do
         --logging-format='%(asctime)s [%(name)s] %(levelname)-6s %(message)s' \
         --with-coverage \
         --cover-package=tormysql
+    if [ $? != 0 ]; then
+        STATUS=1
+    fi
 done
+exit $STATUS
