@@ -123,10 +123,10 @@ class RecordQueryConnection(Connection):
 class ConnectionPool(object):
     def __init__(self, *args, **kwargs):
         self._loop = None
-        self._max_connections = kwargs.pop("max_connections") if "max_connections" in kwargs else 32
-        self._idle_seconds = kwargs.pop("idle_seconds") if "idle_seconds" in kwargs else 7200
-        self._wait_connection_timeout = kwargs.pop("wait_connection_timeout") if "wait_connection_timeout" in kwargs else 8
-        self._debug_connection_used = kwargs.pop("debug_connection_used") if "debug_connection_used" in kwargs else False
+        self._max_connections         = kwargs.pop("max_connections", 32)
+        self._idle_seconds            = kwargs.pop("idle_seconds", 7200)
+        self._wait_connection_timeout = kwargs.pop("wait_connection_timeout", 8)
+        self._debug_connection_used   = kwargs.pop("debug_connection_used", False)
         if self._debug_connection_used:
             self._connection_cls = RecordQueryConnection
         else:
