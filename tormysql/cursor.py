@@ -82,7 +82,7 @@ class Cursor(object):
 
     if py3:
         exec("""
-async def __aiter__(self):
+def __aiter__(self):
     return self._cursor.__iter__()
 
 async def __aenter__(self):
@@ -143,7 +143,7 @@ class SSCursor(Cursor):
 
     if py3:
         exec("""
-async def __aiter__(self):
+def __aiter__(self):
     return self
 
 async def __anext__(self):
