@@ -24,6 +24,11 @@ def current_ioloop():
 
 
 class IOStream(BaseIOStream):
+    _read_callback = None
+    _write_callback = None
+    _connect_callback = None
+    _pending_callbacks = None
+
     def __init__(self, address, bind_address, socket = None, *args, **kwargs):
         if socket is None:
             socket = self.init_socket(address, bind_address)
@@ -66,7 +71,7 @@ class IOStream(BaseIOStream):
             else:
                 future.set_result(connect_future.result())
 
-        connect_future = super(IOStream, self).connect(address, None, server_hostname)
+        connect_future = super(IOStream, self).connect(address, server_hostname = server_hostname)
         connect_future.add_done_callback(connected)
         return future
 
@@ -355,7 +360,10 @@ class SSLIOStream(IOStream, BaseSSLIOStream):
             self._state = self._state & ~self.io_loop.WRITE
             self.io_loop.update_handler(self.fileno(), self._state)
 
-        BaseSSLIOStream._run_ssl_connect_callback(self)
+        if hasattr(BaseSSLIOStream, "_finish_ssl_connect"):
+            BaseSSLIOStream._finish_ssl_connect(self)
+        else:
+            BaseSSLIOStream._run_ssl_connect_callback(self)
 
     def makefile(self, mode):
         return self

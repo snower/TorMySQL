@@ -37,7 +37,8 @@ def use_tornado(reset = True):
 
     from .tornado import Future, coroutine, IOStream
 
-    def current_ioloop():
+    def tornado_current_ioloop():
+        global current_ioloop
         if IOLoop._instance.ioloop is None:
             from .tornado import current_ioloop as _current_ioloop
             IOLoop._instance.ioloop = _current_ioloop()
@@ -45,7 +46,10 @@ def use_tornado(reset = True):
             IOLoop._instance.call_at = IOLoop._instance.ioloop.call_at
             IOLoop._instance.call_later = IOLoop._instance.ioloop.call_later
             IOLoop._instance.cancel_timeout = IOLoop._instance.ioloop.remove_timeout
+            current_ioloop = lambda : IOLoop._instance
         return IOLoop._instance
+
+    current_ioloop = tornado_current_ioloop
     return current_ioloop
 
 def use_asyncio(reset = True):
@@ -56,7 +60,9 @@ def use_asyncio(reset = True):
 
     from .asyncio import Future, coroutine, IOStream
 
-    def current_ioloop():
+    def asyncio_current_ioloop():
+        global current_ioloop
+
         if IOLoop._instance.ioloop is None:
             try:
                 from tornado.ioloop import IOLoop as TornadoIOLoop
@@ -75,7 +81,10 @@ def use_asyncio(reset = True):
             def cancel_timeout(timeout):
                 timeout.cancel()
             IOLoop._instance.cancel_timeout = cancel_timeout
+        current_ioloop = lambda: IOLoop._instance
         return IOLoop._instance
+
+    current_ioloop = asyncio_current_ioloop
     return current_ioloop
 
 if asyncio is None:
