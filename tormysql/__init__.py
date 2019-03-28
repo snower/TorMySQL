@@ -33,8 +33,8 @@ from .log import set_log
 from . import helpers
 
 
-version = "0.4.1"
-version_info = (0, 4, 1)
+version = "0.4.2"
+version_info = (0, 4, 2)
 
 
 def connect(*args, **kwargs):
