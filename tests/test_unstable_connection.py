@@ -64,15 +64,14 @@ class TestThroughProxy(BaseTestCase):
     def setUp(self):
         super(BaseTestCase, self).setUp()
         self.PARAMS = dict(self.PARAMS)
+        self.host, self.port = self.PARAMS['host'], self.PARAMS['port']
 
+    def init_proxy(self):
         s = socket.socket()
         s.bind(('127.0.0.1', 0))
         _, self.pport = s.getsockname()
         s.close()
 
-        self.host, self.port = self.PARAMS['host'], self.PARAMS['port']
-
-    def init_proxy(self):
         def on_connect(server, conn):
             TestThroughProxy.proxys.append(Request(conn, self.host, self.port))
 
