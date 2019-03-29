@@ -3,6 +3,18 @@
 export LOG_LEVEL=debug
 STATUS=0
 
+for file in ./tests/test_*.py
+do
+    echo $file
+    nosetests $file \
+        --logging-format='%(asctime)s [%(name)s] %(levelname)-6s %(message)s' \
+        --with-coverage \
+        --cover-package=tormysql
+    if [ $? != 0 ]; then
+        STATUS=1
+    fi
+done
+
 pip install tornado==5.1.1
 
 for file in ./tests/test_*.py
