@@ -81,16 +81,21 @@ class TestThroughProxy(BaseTestCase):
 
         self.PARAMS['port'] = self.pport
         self.PARAMS['host'] = '127.0.0.1'
+        sevent.current().wakeup()
 
     def _close_proxy_sessions(self):
-        for request in TestThroughProxy.proxys:
-            request.conn.end()
+        def do_close():
+            for request in TestThroughProxy.proxys:
+                request.conn.end()
+        sevent.current().wakeup(do_close)
 
     def tearDown(self):
         try:
-            for request in TestThroughProxy.proxys:
-                request.conn.end()
-            self.proxy_server.close()
+            def do_close():
+                for request in TestThroughProxy.proxys:
+                    request.conn.end()
+                self.proxy_server.close()
+            sevent.current().wakeup(do_close)
         except:
             pass
         super(BaseTestCase, self).tearDown()
@@ -110,7 +115,7 @@ class TestThroughProxy(BaseTestCase):
         else:
             raise AssertionError("Unexpected normal situation")
 
-        self.proxy_server.close()
+        sevent.current().wakeup(self.proxy_server.close)
 
     @gen.coroutine
     def _execute_test_connection_closed(self):
@@ -119,7 +124,7 @@ class TestThroughProxy(BaseTestCase):
         conn = yield Connection(**self.PARAMS)
         yield conn.close()
 
-        self.proxy_server.close()
+        sevent.current().wakeup(self.proxy_server.close)
 
         try:
             yield Connection(**self.PARAMS)
@@ -142,7 +147,7 @@ class TestThroughProxy(BaseTestCase):
             conn = yield pool.Connection()
             yield conn.do_close()
 
-            self.proxy_server.close()
+            sevent.current().wakeup(self.proxy_server.close)
 
             yield pool.Connection()
         except OperationalError:
@@ -173,7 +178,7 @@ class TestThroughProxy(BaseTestCase):
         finally:
             yield pool.close()
 
-        self.proxy_server.close()
+        sevent.current().wakeup(self.proxy_server.close)
 
     @gen_test
     def test(self):

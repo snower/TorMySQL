@@ -29,7 +29,7 @@ class IOStream(BaseIOStream):
     _connect_callback = None
     _pending_callbacks = None
 
-    def __init__(self, address, bind_address, socket = None, *args, **kwargs):
+    def __init__(self, address, bind_address, socket=None, *args, **kwargs):
         if socket is None:
             socket = self.init_socket(address, bind_address)
 
@@ -71,7 +71,7 @@ class IOStream(BaseIOStream):
             else:
                 future.set_result(connect_future.result())
 
-        connect_future = super(IOStream, self).connect(address, server_hostname = server_hostname)
+        connect_future = super(IOStream, self).connect(address, server_hostname=server_hostname)
         connect_future.add_done_callback(connected)
         return future
 
@@ -200,7 +200,7 @@ class IOStream(BaseIOStream):
                     self._state = self._state | self.io_loop.WRITE
                     self.io_loop.update_handler(self.fileno(), self._state)
 
-    def start_tls(self, server_side, ssl_options=None, server_hostname=None, connect_timeout = None):
+    def start_tls(self, server_side, ssl_options=None, server_hostname=None, connect_timeout=None):
         if (self._read_callback or self._read_future or
                 self._write_callback or self._write_futures or
                 self._connect_callback or self._connect_future or

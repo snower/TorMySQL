@@ -40,7 +40,7 @@ class IOStream(Protocol):
     def set_close_callback(self, callback):
         self._close_callback = callback
 
-    def on_closed(self, exc_info = False):
+    def on_closed(self, exc_info=False):
         if self._connect_future:
             if exc_info:
                 self._connect_future.set_exception(exc_info[1] if isinstance(exc_info, tuple) else exc_info)
@@ -84,7 +84,7 @@ class IOStream(Protocol):
         else:
             self._transport, _ = yield from self._loop.create_connection(lambda : self, address[0], address[1], sock=self._sock, server_hostname=server_hostname, local_addr=self._bind_address)
 
-    def connect(self, address, connect_timeout = 0, server_hostname = None):
+    def connect(self, address, connect_timeout=0, server_hostname=None):
         assert self._connect_future is None, 'Already connecting'
 
         self._loop = current_ioloop()

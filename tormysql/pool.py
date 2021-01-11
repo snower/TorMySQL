@@ -290,7 +290,7 @@ class ConnectionPool(object):
             self._loop.call_soon(self._close_future.set_result, None)
             self._close_future = None
 
-    def close(self, timeout = None):
+    def close(self, timeout=None):
         self._loop = platform.current_ioloop()
         if self._closed:
             raise ConnectionPoolClosedError("Connection pool closed.")

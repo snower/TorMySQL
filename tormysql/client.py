@@ -32,7 +32,7 @@ class Client(object):
                 future.set_exception(connection_future.exception())
             else:
                 future.set_result(self)
-        self._connection = Connection(defer_connect = True, *self._args, **self._kwargs)
+        self._connection = Connection(defer_connect=True, *self._args, **self._kwargs)
         self._connection.set_close_callback(self.connection_close_callback)
         connection_future = async_call_method(self._connection.connect)
         connection_future.add_done_callback(on_connected)
