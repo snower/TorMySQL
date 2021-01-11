@@ -10,10 +10,9 @@ import sys
 import time
 from collections import deque
 from . import platform
-from pymysql._compat import text_type
 from .client import Client
 from . import log
-from .util import py3
+from .util import py3, text_type
 
 
 class ConnectionPoolClosedError(Exception):

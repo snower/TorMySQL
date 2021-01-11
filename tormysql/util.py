@@ -8,8 +8,10 @@ from . import platform
 
 if sys.version_info[0] >= 3:
     py3 = True
+    text_type = str
 else:
     py3 = False
+    text_type = unicode
 
 def async_call_method(fun, *args, **kwargs):
     future = platform.Future()
