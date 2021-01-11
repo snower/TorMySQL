@@ -13,6 +13,9 @@ setup(
         'PyMySQL>=0.7.10',
         'greenlet>=0.4.2',
     ],
+    extras_require={
+        "tornado": ['tornado>=5'],
+    },
     author='snower, mosquito',
     author_email='sujian199@gmail.com, me@mosquito.su',
     url='https://github.com/snower/TorMySQL',
