@@ -8,15 +8,13 @@ try:
 except:
     asyncio = None
 
+import unittest
 from tormysql.cursor import SSCursor
 from tormysql.helpers import ConnectionPool
-from tornado.testing import AsyncTestCase
-from tornado.testing import gen_test
-from tornado.test.util import unittest
 from tormysql.util import py3
 
 @unittest.skipIf(asyncio is None, "asyncio module not present")
-class TestAsyncioCase(AsyncTestCase):
+class TestAsyncioCase(unittest.TestCase):
     PARAMS = dict(
         host=os.getenv("MYSQL_HOST", "127.0.0.1"),
         port=int(os.getenv("MYSQL_PORT", "3306")),
@@ -42,8 +40,7 @@ class TestAsyncioCase(AsyncTestCase):
 
     if py3:
         exec("""
-@gen_test
-async def test_execute(self):
+async def run_execute(self):
     cursor = await self.pool.execute("select * from test limit 1")
     datas = cursor.fetchall()
     assert datas
@@ -65,3 +62,6 @@ async def test_execute(self):
             async for data in cursor:
                 assert data
         """)
+
+    def test_execute(self):
+        asyncio.get_event_loop().run_until_complete(self.run_execute())

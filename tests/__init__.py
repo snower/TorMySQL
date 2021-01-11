@@ -2,7 +2,6 @@
 # encoding: utf-8
 
 import os
-from tornado.ioloop import IOLoop
 from tormysql import ConnectionPool
 from tornado.testing import AsyncTestCase
 
