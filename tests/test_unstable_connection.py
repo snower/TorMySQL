@@ -82,12 +82,14 @@ class TestThroughProxy(BaseTestCase):
         self.PARAMS['port'] = self.pport
         self.PARAMS['host'] = '127.0.0.1'
         sevent.current().wakeup()
+        time.sleep(0.1)
 
     def _close_proxy_sessions(self):
         def do_close():
             for request in TestThroughProxy.proxys:
                 request.conn.end()
         sevent.current().wakeup(do_close)
+        time.sleep(0.1)
 
     def tearDown(self):
         try:
@@ -96,6 +98,7 @@ class TestThroughProxy(BaseTestCase):
                     request.conn.end()
                 self.proxy_server.close()
             sevent.current().wakeup(do_close)
+            time.sleep(0.1)
         except:
             pass
         super(BaseTestCase, self).tearDown()
@@ -116,6 +119,7 @@ class TestThroughProxy(BaseTestCase):
             raise AssertionError("Unexpected normal situation")
 
         sevent.current().wakeup(self.proxy_server.close)
+        time.sleep(0.1)
 
     @gen.coroutine
     def _execute_test_connection_closed(self):
@@ -125,6 +129,7 @@ class TestThroughProxy(BaseTestCase):
         yield conn.close()
 
         sevent.current().wakeup(self.proxy_server.close)
+        time.sleep(0.1)
 
         try:
             yield Connection(**self.PARAMS)
@@ -148,6 +153,7 @@ class TestThroughProxy(BaseTestCase):
             yield conn.do_close()
 
             sevent.current().wakeup(self.proxy_server.close)
+            time.sleep(0.1)
 
             yield pool.Connection()
         except OperationalError:
@@ -179,6 +185,7 @@ class TestThroughProxy(BaseTestCase):
             yield pool.close()
 
         sevent.current().wakeup(self.proxy_server.close)
+        time.sleep(0.1)
 
     @gen_test
     def test(self):

@@ -3,7 +3,10 @@
 
 import os
 from tormysql import ConnectionPool
-from tornado.testing import AsyncTestCase
+try:
+    from tornado.testing import AsyncTestCase
+except:
+    from unittest import TestCase as AsyncTestCase
 
 class BaseTestCase(AsyncTestCase):
     PARAMS = dict(
